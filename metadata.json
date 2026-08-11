@@ -1,0 +1,6 @@
+{
+  "name": "Penomoran Surat PKMK FK KMK UGM",
+  "description": "Sistem Informasi Penomoran Surat Resmi PKMK FK KMK UGM. Dilengkapi halaman depan publik untuk pencarian & verifikasi nomor surat, serta backend multi-user untuk staf & sekretariat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
