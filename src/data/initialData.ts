@@ -163,9 +163,9 @@ export const INITIAL_USERS: User[] = [
 
 export const INITIAL_SURAT: SuratItem[] = [
   {
-    id: 'srt-2026-001',
-    nomorSurat: '001/PKMK/S.Tgs/FK-KMK/I/2026',
-    nomorUrut: 1,
+    id: 'srt-2026-1519',
+    nomorSurat: '1519/PKMK/S.Tgs/FK-KMK/I/2026',
+    nomorUrut: 1519,
     jenisSuratCode: 'S.Tgs',
     jenisSuratName: 'Surat Tugas',
     divisiCode: 'DMRS',
@@ -178,14 +178,14 @@ export const INITIAL_SURAT: SuratItem[] = [
     pembuatUserId: 'usr-2',
     pembuatUserName: 'Siti Rahmawati, A.Md',
     status: 'Aktif',
-    qrCodeHash: 'PKMK-2026-001-STGS-VERIFIED',
+    qrCodeHash: 'PKMK-2026-1519-STGS-VERIFIED',
     lampiranInfo: '1 Berkas Jadwal Pendampingan',
     catatan: 'Pendampingan lapangan 12-16 Januari 2026'
   },
   {
-    id: 'srt-2026-002',
-    nomorSurat: '002/PKMK/S.Und/FK-KMK/I/2026',
-    nomorUrut: 2,
+    id: 'srt-2026-1520',
+    nomorSurat: '1520/PKMK/S.Und/FK-KMK/I/2026',
+    nomorUrut: 1520,
     jenisSuratCode: 'S.Und',
     jenisSuratName: 'Surat Undangan',
     divisiCode: 'DKKP',
@@ -198,14 +198,14 @@ export const INITIAL_SURAT: SuratItem[] = [
     pembuatUserId: 'usr-2',
     pembuatUserName: 'Siti Rahmawati, A.Md',
     status: 'Aktif',
-    qrCodeHash: 'PKMK-2026-002-SUND-VERIFIED',
+    qrCodeHash: 'PKMK-2026-1520-SUND-VERIFIED',
     lampiranInfo: 'Kerangka Acuan Kerja (TOR)',
     catatan: 'Acara daring via Zoom Webinar'
   },
   {
-    id: 'srt-2026-003',
-    nomorSurat: '003/PKMK/S.Kel/FK-KMK/I/2026',
-    nomorUrut: 3,
+    id: 'srt-2026-1521',
+    nomorSurat: '1521/PKMK/S.Kel/FK-KMK/I/2026',
+    nomorUrut: 1521,
     jenisSuratCode: 'S.Kel',
     jenisSuratName: 'Surat Keluar / Biasa',
     divisiCode: 'DMM',
@@ -218,13 +218,13 @@ export const INITIAL_SURAT: SuratItem[] = [
     pembuatUserId: 'usr-4',
     pembuatUserName: 'Dr. Tri Astuti, M.P.H.',
     status: 'Aktif',
-    qrCodeHash: 'PKMK-2026-003-SKEL-VERIFIED',
+    qrCodeHash: 'PKMK-2026-1521-SKEL-VERIFIED',
     catatan: 'Untuk studi riset mutu layanan kesehatan'
   },
   {
-    id: 'srt-2026-004',
-    nomorSurat: '004/PKMK/SPK/DEH/FK-KMK/II/2026',
-    nomorUrut: 4,
+    id: 'srt-2026-1522',
+    nomorSurat: '1522/PKMK/SPK/DEH/FK-KMK/II/2026',
+    nomorUrut: 1522,
     jenisSuratCode: 'SPK',
     jenisSuratName: 'Surat Perjanjian / Kerjasama',
     divisiCode: 'DEH',
@@ -237,14 +237,14 @@ export const INITIAL_SURAT: SuratItem[] = [
     pembuatUserId: 'usr-1',
     pembuatUserName: 'Rina Sulistyaningsih, M.Kom',
     status: 'Aktif',
-    qrCodeHash: 'PKMK-2026-004-SPK-VERIFIED',
+    qrCodeHash: 'PKMK-2026-1522-SPK-VERIFIED',
     lampiranInfo: 'Naskah Kerjasama (MoU/MoA) 2 Rangkap',
     catatan: 'Masa berlaku kerjasama Feb 2026 - Feb 2027'
   },
   {
-    id: 'srt-2026-005',
-    nomorSurat: '005/PKMK/S.Tgs/FK-KMK/II/2026',
-    nomorUrut: 5,
+    id: 'srt-2026-1523',
+    nomorSurat: '1523/PKMK/S.Tgs/FK-KMK/II/2026',
+    nomorUrut: 1523,
     jenisSuratCode: 'S.Tgs',
     jenisSuratName: 'Surat Tugas',
     divisiCode: 'UPK',
@@ -257,12 +257,12 @@ export const INITIAL_SURAT: SuratItem[] = [
     pembuatUserId: 'usr-2',
     pembuatUserName: 'Siti Rahmawati, A.Md',
     status: 'Aktif',
-    qrCodeHash: 'PKMK-2026-005-STGS-VERIFIED'
+    qrCodeHash: 'PKMK-2026-1523-STGS-VERIFIED'
   },
   {
-    id: 'srt-2026-006',
-    nomorSurat: '006/PKMK/SK/FK-KMK/II/2026',
-    nomorUrut: 6,
+    id: 'srt-2026-1524',
+    nomorSurat: '1524/PKMK/SK/FK-KMK/II/2026',
+    nomorUrut: 1524,
     jenisSuratCode: 'SK',
     jenisSuratName: 'Surat Keputusan',
     divisiCode: 'SEKRED',
@@ -275,13 +275,13 @@ export const INITIAL_SURAT: SuratItem[] = [
     pembuatUserId: 'usr-5',
     pembuatUserName: 'Prof. Dr. Laksono Trisnantoro, M.Sc., Ph.D.',
     status: 'Aktif',
-    qrCodeHash: 'PKMK-2026-006-SK-VERIFIED',
+    qrCodeHash: 'PKMK-2026-1524-SK-VERIFIED',
     lampiranInfo: 'Susunan Panitia & Deskripsi Tugas'
   },
   {
-    id: 'srt-2026-007',
-    nomorSurat: '007/PKMK/S.Ket/FK-KMK/III/2026',
-    nomorUrut: 7,
+    id: 'srt-2026-1525',
+    nomorSurat: '1525/PKMK/S.Ket/FK-KMK/III/2026',
+    nomorUrut: 1525,
     jenisSuratCode: 'S.Ket',
     jenisSuratName: 'Surat Keterangan',
     divisiCode: 'DMRS',
@@ -294,12 +294,12 @@ export const INITIAL_SURAT: SuratItem[] = [
     pembuatUserId: 'usr-3',
     pembuatUserName: 'Budi Santoso, S.Kep, M.P.H.',
     status: 'Aktif',
-    qrCodeHash: 'PKMK-2026-007-SKET-VERIFIED'
+    qrCodeHash: 'PKMK-2026-1525-SKET-VERIFIED'
   },
   {
-    id: 'srt-2026-008',
-    nomorSurat: '008/PKMK/ND/DMM/III/2026',
-    nomorUrut: 8,
+    id: 'srt-2026-1526',
+    nomorSurat: '1526/PKMK/ND/DMM/III/2026',
+    nomorUrut: 1526,
     jenisSuratCode: 'ND',
     jenisSuratName: 'Nota Dinas',
     divisiCode: 'DMM',
@@ -312,7 +312,7 @@ export const INITIAL_SURAT: SuratItem[] = [
     pembuatUserId: 'usr-4',
     pembuatUserName: 'Dr. Tri Astuti, M.P.H.',
     status: 'Aktif',
-    qrCodeHash: 'PKMK-2026-008-ND-VERIFIED'
+    qrCodeHash: 'PKMK-2026-1526-ND-VERIFIED'
   }
 ];
 
@@ -324,8 +324,8 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
     userName: 'Dr. Tri Astuti, M.P.H.',
     userRole: 'Peneliti Divisi Mutu',
     action: 'CREATE',
-    details: 'Menerbitkan Nomor Surat Nota Dinas (008/PKMK/ND/DMM/III/2026)',
-    nomorSuratTarget: '008/PKMK/ND/DMM/III/2026'
+    details: 'Menerbitkan Nomor Surat Nota Dinas (1526/PKMK/ND/DMM/III/2026)',
+    nomorSuratTarget: '1526/PKMK/ND/DMM/III/2026'
   },
   {
     id: 'log-2',
@@ -334,8 +334,8 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
     userName: 'Budi Santoso, S.Kep, M.P.H.',
     userRole: 'Staf Divisi DMRS',
     action: 'CREATE',
-    details: 'Menerbitkan Nomor Surat Keterangan Magang (007/PKMK/S.Ket/FK-KMK/III/2026)',
-    nomorSuratTarget: '007/PKMK/S.Ket/FK-KMK/III/2026'
+    details: 'Menerbitkan Nomor Surat Keterangan Magang (1525/PKMK/S.Ket/FK-KMK/III/2026)',
+    nomorSuratTarget: '1525/PKMK/S.Ket/FK-KMK/III/2026'
   },
   {
     id: 'log-3',
@@ -344,7 +344,7 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
     userName: 'Prof. Dr. Laksono Trisnantoro, M.Sc., Ph.D.',
     userRole: 'Pengarah / Verifikator Utama',
     action: 'CREATE',
-    details: 'Menerbitkan Surat Keputusan Pengelola (006/PKMK/SK/FK-KMK/II/2026)',
-    nomorSuratTarget: '006/PKMK/SK/FK-KMK/II/2026'
+    details: 'Menerbitkan Surat Keputusan Pengelola (1524/PKMK/SK/FK-KMK/II/2026)',
+    nomorSuratTarget: '1524/PKMK/SK/FK-KMK/II/2026'
   }
 ];

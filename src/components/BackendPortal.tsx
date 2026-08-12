@@ -43,9 +43,12 @@ interface BackendPortalProps {
   onLoginAsDemo: (username: string) => void;
   onOpenLoginModal: () => void;
   onCreateSurat: (formData: any) => Promise<boolean>;
+  onUpdateSurat?: (id: string, updatedData: Partial<SuratItem>) => Promise<boolean>;
   onUpdateSuratStatus: (id: string, status: StatusSurat) => Promise<void>;
   onDeleteSurat: (id: string) => Promise<void>;
   onCreateUser: (userData: any) => Promise<boolean>;
+  onUpdateUser?: (id: string, userData: Partial<User>) => Promise<boolean>;
+  onDeleteUser?: (id: string) => Promise<boolean>;
   onOpenAiAssist: (draft: string, type: string, dest: string, callback: (suggested: string) => void) => void;
   onSelectSurat: (surat: SuratItem) => void;
   onRefresh: () => void;
@@ -61,14 +64,63 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
   onLoginAsDemo,
   onOpenLoginModal,
   onCreateSurat,
+  onUpdateSurat,
   onUpdateSuratStatus,
   onDeleteSurat,
   onCreateUser,
+  onUpdateUser,
+  onDeleteUser,
   onOpenAiAssist,
   onSelectSurat,
   onRefresh
 }) => {
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'users' | 'logs' | 'export'>('list');
+
+  // Edit Surat Modal State
+  const [editingSurat, setEditingSurat] = useState<SuratItem | null>(null);
+  const [editSuratForm, setEditSuratForm] = useState<{
+    nomorSurat: string;
+    perihal: string;
+    ditujukanKepada: string;
+    pengajuName: string;
+    tglSurat: string;
+    jenisSuratCode: string;
+    divisiCode: string;
+    status: StatusSurat;
+    lampiranInfo: string;
+    catatan: string;
+  }>({
+    nomorSurat: '',
+    perihal: '',
+    ditujukanKepada: '',
+    pengajuName: '',
+    tglSurat: '',
+    jenisSuratCode: 'S.Tgs',
+    divisiCode: 'DMRS',
+    status: 'Aktif',
+    lampiranInfo: '',
+    catatan: ''
+  });
+  const [editSuratSubmitting, setEditSuratSubmitting] = useState(false);
+  const [editSuratMsg, setEditSuratMsg] = useState<string | null>(null);
+
+  // Edit User Modal State
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserForm, setEditUserForm] = useState<{
+    name: string;
+    username: string;
+    email: string;
+    role: Role;
+    divisiCode: string;
+  }>({
+    name: '',
+    username: '',
+    email: '',
+    role: 'staf',
+    divisiCode: 'DMRS'
+  });
+  const [editUserSubmitting, setEditUserSubmitting] = useState(false);
+  const [editUserMsg, setEditUserMsg] = useState<string | null>(null);
 
   // New Letter Form State
   const [jenisSuratCode, setJenisSuratCode] = useState('S.Tgs');
@@ -197,6 +249,97 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
       setNewUserEmail('');
     } else {
       setUserFormMsg({ type: 'error', text: 'Username sudah digunakan atau terjadi kesalahan.' });
+    }
+  };
+
+  // Open Edit Surat Modal
+  const handleOpenEditSurat = (surat: SuratItem) => {
+    setEditingSurat(surat);
+    setEditSuratForm({
+      nomorSurat: surat.nomorSurat,
+      perihal: surat.perihal,
+      ditujukanKepada: surat.ditujukanKepada,
+      pengajuName: surat.pengajuName,
+      tglSurat: surat.tglSurat,
+      jenisSuratCode: surat.jenisSuratCode,
+      divisiCode: surat.divisiCode,
+      status: surat.status,
+      lampiranInfo: surat.lampiranInfo || '',
+      catatan: surat.catatan || ''
+    });
+    setEditSuratMsg(null);
+  };
+
+  // Save Edit Surat
+  const handleSaveEditSurat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSurat) return;
+
+    setEditSuratSubmitting(true);
+    setEditSuratMsg(null);
+
+    try {
+      if (onUpdateSurat) {
+        const ok = await onUpdateSurat(editingSurat.id, editSuratForm);
+        if (ok) {
+          setEditingSurat(null);
+        } else {
+          setEditSuratMsg('Gagal menyimpan perubahan kolom surat.');
+        }
+      }
+    } catch (err) {
+      setEditSuratMsg('Terjadi kesalahan saat menyimpan perubahan.');
+    } finally {
+      setEditSuratSubmitting(false);
+    }
+  };
+
+  // Open Edit User Modal
+  const handleOpenEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditUserForm({
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      divisiCode: user.divisiCode
+    });
+    setEditUserMsg(null);
+  };
+
+  // Save Edit User
+  const handleSaveEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setEditUserSubmitting(true);
+    setEditUserMsg(null);
+
+    try {
+      if (onUpdateUser) {
+        const ok = await onUpdateUser(editingUser.id, editUserForm);
+        if (ok) {
+          setEditingUser(null);
+        } else {
+          setEditUserMsg('Gagal memperbarui data pengguna.');
+        }
+      }
+    } catch (err) {
+      setEditUserMsg('Terjadi kesalahan saat memperbarui akun pengguna.');
+    } finally {
+      setEditUserSubmitting(false);
+    }
+  };
+
+  // Delete User
+  const handleDeleteUserClick = async (user: User) => {
+    if (confirm(`Yakin ingin menghapus pengguna "${user.name}" (${user.username})?`)) {
+      if (onDeleteUser) {
+        const ok = await onDeleteUser(user.id);
+        if (ok) {
+          onRefresh();
+        }
+      }
     }
   };
 
@@ -535,6 +678,16 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                               <span>Detail</span>
                             </button>
 
+                            {/* Edit Surat Button */}
+                            <button
+                              onClick={() => handleOpenEditSurat(surat)}
+                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold rounded-lg text-xs flex items-center gap-1 border border-amber-200"
+                              title="Edit Data/Kolom Surat"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Edit</span>
+                            </button>
+
                             {/* Status Change Option */}
                             {surat.status === 'Aktif' ? (
                               <button
@@ -871,12 +1024,31 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                         </td>
 
                         <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => onLoginAsDemo(u.username)}
-                            className="px-3 py-1 bg-slate-900 text-white font-bold text-[10px] rounded-lg hover:bg-amber-600 hover:text-slate-950 transition-all"
-                          >
-                            Masuk Sesi
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditUser(u)}
+                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[10px] rounded-lg border border-amber-200 transition-all flex items-center gap-1"
+                              title="Edit User / Peran"
+                            >
+                              <Edit3 className="w-3 h-3 text-amber-700" />
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              onClick={() => onLoginAsDemo(u.username)}
+                              className="px-2.5 py-1 bg-slate-900 text-white font-bold text-[10px] rounded-lg hover:bg-amber-600 hover:text-slate-950 transition-all"
+                            >
+                              Masuk Sesi
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteUserClick(u)}
+                              className="p-1 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                              title="Hapus Pengguna"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1067,6 +1239,313 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
         )}
 
       </div>
+
+      {/* MODAL EDIT SURAT (KOLOM SURAT BISA DI-EDIT) */}
+      {editingSurat && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500 text-slate-950 font-bold">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Edit Kolom & Data Surat</h3>
+                  <p className="text-xs text-amber-400 font-mono font-semibold">{editingSurat.nomorSurat}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setEditingSurat(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <Lock className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditSurat} className="p-6 space-y-4 text-xs">
+              {editSuratMsg && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-xl font-medium">
+                  {editSuratMsg}
+                </div>
+              )}
+
+              {/* Nomor Surat */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nomor Surat (Dapat disesuaikan jika perlu)</label>
+                <input
+                  type="text"
+                  value={editSuratForm.nomorSurat}
+                  onChange={(e) => setEditSuratForm(prev => ({ ...prev, nomorSurat: e.target.value }))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900"
+                  required
+                />
+              </div>
+
+              {/* Perihal with Gemini AI */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700">Perihal Surat</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenAiAssist(editSuratForm.perihal, editSuratForm.jenisSuratCode, editSuratForm.ditujukanKepada, (suggested) => {
+                        setEditSuratForm(prev => ({ ...prev, perihal: suggested }));
+                      });
+                    }}
+                    className="text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded border border-amber-300 flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    <span>Sempurnakan AI</span>
+                  </button>
+                </div>
+                <textarea
+                  rows={2}
+                  value={editSuratForm.perihal}
+                  onChange={(e) => setEditSuratForm(prev => ({ ...prev, perihal: e.target.value }))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  required
+                />
+              </div>
+
+              {/* Row: Ditujukan Kepada & Pengaju */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Ditujukan Kepada</label>
+                  <input
+                    type="text"
+                    value={editSuratForm.ditujukanKepada}
+                    onChange={(e) => setEditSuratForm(prev => ({ ...prev, ditujukanKepada: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nama Pengaju / Penanggung Jawab</label>
+                  <input
+                    type="text"
+                    value={editSuratForm.pengajuName}
+                    onChange={(e) => setEditSuratForm(prev => ({ ...prev, pengajuName: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Row: Tanggal, Jenis, Divisi */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Tanggal Surat</label>
+                  <input
+                    type="date"
+                    value={editSuratForm.tglSurat}
+                    onChange={(e) => setEditSuratForm(prev => ({ ...prev, tglSurat: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Jenis Surat</label>
+                  <select
+                    value={editSuratForm.jenisSuratCode}
+                    onChange={(e) => setEditSuratForm(prev => ({ ...prev, jenisSuratCode: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  >
+                    {letterTypes.map(t => (
+                      <option key={t.id} value={t.code}>{t.code} - {t.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Divisi Penanggung Jawab</label>
+                  <select
+                    value={editSuratForm.divisiCode}
+                    onChange={(e) => setEditSuratForm(prev => ({ ...prev, divisiCode: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  >
+                    {divisions.map(d => (
+                      <option key={d.id} value={d.code}>{d.code}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Row: Status & Lampiran */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Surat</label>
+                  <select
+                    value={editSuratForm.status}
+                    onChange={(e) => setEditSuratForm(prev => ({ ...prev, status: e.target.value as StatusSurat }))}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                  >
+                    <option value="Aktif">Aktif</option>
+                    <option value="Dibatalkan">Dibatalkan</option>
+                    <option value="Arsip">Arsip</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Info Lampiran</label>
+                  <input
+                    type="text"
+                    value={editSuratForm.lampiranInfo}
+                    onChange={(e) => setEditSuratForm(prev => ({ ...prev, lampiranInfo: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                    placeholder="Contoh: 1 Berkas Lampiran..."
+                  />
+                </div>
+              </div>
+
+              {/* Catatan */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Catatan Internal</label>
+                <input
+                  type="text"
+                  value={editSuratForm.catatan}
+                  onChange={(e) => setEditSuratForm(prev => ({ ...prev, catatan: e.target.value }))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  placeholder="Catatan tambahan..."
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingSurat(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSuratSubmitting}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl shadow-md flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{editSuratSubmitting ? 'Simpan...' : 'Simpan Perubahan Kolom'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDIT USER (CRUD USER ADMINISTRATOR) */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500 text-slate-950 font-bold">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Edit Akses & Profil Pengguna</h3>
+                  <p className="text-xs text-amber-400 font-mono font-semibold">{editingUser.username}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setEditingUser(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <Lock className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditUser} className="p-6 space-y-3 text-xs">
+              {editUserMsg && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-xl font-medium">
+                  {editUserMsg}
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nama Lengkap & Gelar</label>
+                <input
+                  type="text"
+                  value={editUserForm.name}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Username Login</label>
+                <input
+                  type="text"
+                  value={editUserForm.username}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, username: e.target.value }))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Email UGM / Resmi</label>
+                <input
+                  type="email"
+                  value={editUserForm.email}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Peran Akses (Role)</label>
+                <select
+                  value={editUserForm.role}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, role: e.target.value as Role }))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                >
+                  <option value="admin">Administrator Sistem (Full Access)</option>
+                  <option value="sekretariat">Kepala / Staf Sekretariat</option>
+                  <option value="staf">Staf / Peneliti Divisi</option>
+                  <option value="verifikator">Verifikator / Pimpinan</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Divisi Penempatan</label>
+                <select
+                  value={editUserForm.divisiCode}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, divisiCode: e.target.value }))}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                >
+                  {divisions.map(d => (
+                    <option key={d.id} value={d.code}>{d.code} - {d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={editUserSubmitting}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl shadow-md flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{editUserSubmitting ? 'Simpan...' : 'Simpan Data User'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -67,17 +67,17 @@ function generateLetterNumber(
   return `${formattedNo}/PKMK/${jenisSuratCode}/FK-KMK/${romanMonth}/${year}`;
 }
 
-// Get highest sequential number for a given year
+// Get highest sequential number for a given year (Starts from 1519)
 function getNextSequenceNumber(year: number): number {
   const lettersInYear = suratList.filter(s => {
     const sYear = new Date(s.tglSurat).getFullYear();
     return sYear === year;
   });
 
-  if (lettersInYear.length === 0) return 1;
+  if (lettersInYear.length === 0) return 1519;
 
   const maxUrut = Math.max(...lettersInYear.map(s => s.nomorUrut || 0));
-  return maxUrut + 1;
+  return Math.max(maxUrut + 1, 1519);
 }
 
 // ==========================================
@@ -353,10 +353,22 @@ app.post('/api/admin/surat', (req, res) => {
   });
 });
 
-// PUT /api/admin/surat/:id - Edit or Change Status of Letter
+// PUT /api/admin/surat/:id - Edit full letter data or change status
 app.put('/api/admin/surat/:id', (req, res) => {
   const { id } = req.params;
-  const { perihal, ditujukanKepada, pengajuName, status, catatan, lampiranInfo, userId } = req.body;
+  const {
+    nomorSurat,
+    perihal,
+    ditujukanKepada,
+    pengajuName,
+    tglSurat,
+    jenisSuratCode,
+    divisiCode,
+    status,
+    catatan,
+    lampiranInfo,
+    userId
+  } = req.body;
 
   const index = suratList.findIndex(s => s.id === id);
   if (index === -1) {
@@ -366,11 +378,26 @@ app.put('/api/admin/surat/:id', (req, res) => {
   const current = suratList[index];
   const oldStatus = current.status;
 
+  if (nomorSurat) current.nomorSurat = nomorSurat;
   if (perihal) current.perihal = perihal;
-  if (ditujukanKepada) current.ditujukanKepada = ditujukanKepada;
-  if (pengajuName) current.pengajuName = pengajuName;
+  if (ditujukanKepada !== undefined) current.ditujukanKepada = ditujukanKepada;
+  if (pengajuName !== undefined) current.pengajuName = pengajuName;
+  if (tglSurat) current.tglSurat = tglSurat;
   if (catatan !== undefined) current.catatan = catatan;
   if (lampiranInfo !== undefined) current.lampiranInfo = lampiranInfo;
+
+  if (jenisSuratCode) {
+    current.jenisSuratCode = jenisSuratCode;
+    const jObj = letterTypes.find(t => t.code === jenisSuratCode);
+    if (jObj) current.jenisSuratName = jObj.name;
+  }
+
+  if (divisiCode) {
+    current.divisiCode = divisiCode;
+    const dObj = divisions.find(d => d.code === divisiCode);
+    if (dObj) current.divisiName = dObj.name;
+  }
+
   if (status && ['Aktif', 'Dibatalkan', 'Arsip'].includes(status)) {
     current.status = status as StatusSurat;
   }
@@ -384,14 +411,14 @@ app.put('/api/admin/surat/:id', (req, res) => {
     userName: updater.name,
     userRole: updater.roleName,
     action: status && status !== oldStatus ? (status === 'Dibatalkan' ? 'CANCEL' : 'ARCHIVE') : 'UPDATE',
-    details: `Memperbarui surat ${current.nomorSurat}. ${status ? 'Status: ' + status : ''}`,
+    details: `Memperbarui data surat ${current.nomorSurat} (${current.perihal.substring(0, 40)}...)`,
     nomorSuratTarget: current.nomorSurat
   });
 
   res.json({
     success: true,
     data: current,
-    message: 'Data surat berhasil diperbarui.'
+    message: 'Data kolom surat berhasil diperbarui.'
   });
 });
 
@@ -479,6 +506,98 @@ app.post('/api/admin/users', (req, res) => {
     success: true,
     data: newUser,
     message: 'Pengguna baru berhasil ditambahkan.'
+  });
+});
+
+// PUT /api/admin/users/:id - Update User Account (Admin CRUD)
+app.put('/api/admin/users/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, username, email, role, divisiCode } = req.body;
+
+  const index = users.findIndex(u => u.id === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: 'Pengguna tidak ditemukan.' });
+  }
+
+  // Check username uniqueness if changed
+  if (username) {
+    const duplicate = users.find(u => u.id !== id && u.username.toLowerCase() === username.toLowerCase());
+    if (duplicate) {
+      return res.status(409).json({ success: false, message: 'Username sudah digunakan oleh akun lain.' });
+    }
+  }
+
+  const roleNames: Record<string, string> = {
+    admin: 'Administrator Sistem',
+    sekretariat: 'Staf Sekretariat',
+    staf: 'Staf Divisi / Unit',
+    verifikator: 'Verifikator / Pimpinan'
+  };
+
+  const user = users[index];
+  if (name) user.name = name;
+  if (username) user.username = username;
+  if (email) user.email = email;
+  if (role) {
+    user.role = role;
+    user.roleName = roleNames[role] || role;
+  }
+  if (divisiCode) {
+    user.divisiCode = divisiCode;
+    const divObj = divisions.find(d => d.code === divisiCode);
+    if (divObj) user.divisiName = divObj.name;
+  }
+
+  // Update avatar URL if name changed
+  if (name) {
+    user.avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`;
+  }
+
+  auditLogs.unshift({
+    id: `log-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    userId: user.id,
+    userName: user.name,
+    userRole: user.roleName,
+    action: 'UPDATE',
+    details: `Memperbarui profil pengguna ${user.name} (${user.username})`,
+  });
+
+  res.json({
+    success: true,
+    data: user,
+    message: 'Data pengguna berhasil diperbarui.'
+  });
+});
+
+// DELETE /api/admin/users/:id - Delete User Account (Admin CRUD)
+app.delete('/api/admin/users/:id', (req, res) => {
+  const { id } = req.params;
+
+  const index = users.findIndex(u => u.id === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: 'Pengguna tidak ditemukan.' });
+  }
+
+  if (users.length <= 1) {
+    return res.status(400).json({ success: false, message: 'Sistem harus memiliki setidaknya satu pengguna.' });
+  }
+
+  const deletedUser = users.splice(index, 1)[0];
+
+  auditLogs.unshift({
+    id: `log-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    userId: 'usr-1',
+    userName: 'Admin System',
+    userRole: 'Administrator Sistem',
+    action: 'DELETE',
+    details: `Menghapus akun pengguna: ${deletedUser.name} (${deletedUser.username})`,
+  });
+
+  res.json({
+    success: true,
+    message: `Pengguna ${deletedUser.name} berhasil dihapus.`
   });
 });
 

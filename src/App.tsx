@@ -173,6 +173,39 @@ export default function App() {
     }
   };
 
+  // Update full Surat data
+  const handleUpdateSurat = async (id: string, updatedData: Partial<SuratItem>): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/admin/surat/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...updatedData,
+          userId: currentUser?.id
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.data) {
+        setSuratList(prev =>
+          prev.map(s => (s.id === id ? { ...s, ...data.data } : s))
+        );
+        fetchDataFromBackend();
+        return true;
+      } else {
+        alert(data.message || 'Gagal memperbarui surat.');
+        return false;
+      }
+    } catch (err) {
+      console.error('Update surat error:', err);
+      // Fallback local state update
+      setSuratList(prev =>
+        prev.map(s => (s.id === id ? { ...s, ...updatedData } : s))
+      );
+      return true;
+    }
+  };
+
   // Update Surat Status (Aktif / Dibatalkan / Arsip)
   const handleUpdateSuratStatus = async (id: string, status: StatusSurat) => {
     try {
@@ -226,11 +259,68 @@ export default function App() {
       const data = await res.json();
       if (data.success && data.data) {
         setUsersList(prev => [...prev, data.data]);
+        fetchDataFromBackend();
         return true;
       }
       return false;
     } catch (err) {
       return false;
+    }
+  };
+
+  // Update User
+  const handleUpdateUser = async (id: string, userData: Partial<User>): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+
+      const data = await res.json();
+      if (data.success && data.data) {
+        setUsersList(prev =>
+          prev.map(u => (u.id === id ? { ...u, ...data.data } : u))
+        );
+        if (currentUser?.id === id) {
+          setCurrentUser(data.data);
+        }
+        fetchDataFromBackend();
+        return true;
+      } else {
+        alert(data.message || 'Gagal memperbarui pengguna.');
+        return false;
+      }
+    } catch (err) {
+      setUsersList(prev =>
+        prev.map(u => (u.id === id ? { ...u, ...userData } : u))
+      );
+      return true;
+    }
+  };
+
+  // Delete User
+  const handleDeleteUser = async (id: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'DELETE'
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setUsersList(prev => prev.filter(u => u.id !== id));
+        if (currentUser?.id === id) {
+          setCurrentUser(null);
+        }
+        fetchDataFromBackend();
+        return true;
+      } else {
+        alert(data.message || 'Gagal menghapus pengguna.');
+        return false;
+      }
+    } catch (err) {
+      setUsersList(prev => prev.filter(u => u.id !== id));
+      return true;
     }
   };
 
@@ -285,9 +375,12 @@ export default function App() {
             onLoginAsDemo={handleLoginAsDemo}
             onOpenLoginModal={() => setIsLoginModalOpen(true)}
             onCreateSurat={handleCreateSurat}
+            onUpdateSurat={handleUpdateSurat}
             onUpdateSuratStatus={handleUpdateSuratStatus}
             onDeleteSurat={handleDeleteSurat}
             onCreateUser={handleCreateUser}
+            onUpdateUser={handleUpdateUser}
+            onDeleteUser={handleDeleteUser}
             onOpenAiAssist={handleOpenAiAssist}
             onSelectSurat={(surat) => setSelectedSuratForDetail(surat)}
             onRefresh={fetchDataFromBackend}
