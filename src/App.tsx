@@ -232,18 +232,26 @@ export default function App() {
   };
 
   // Delete Surat
-  const handleDeleteSurat = async (id: string) => {
+  const handleDeleteSurat = async (id: string): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/admin/surat/${id}?userId=${currentUser?.id}`, {
+      const res = await fetch(`/api/admin/surat/${id}?userId=${currentUser?.id || ''}`, {
         method: 'DELETE'
       });
 
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success !== false) {
         setSuratList(prev => prev.filter(s => s.id !== id));
         fetchDataFromBackend();
+        return true;
+      } else {
+        alert(data.message || 'Gagal menghapus surat.');
+        return false;
       }
     } catch (err) {
+      console.error('Delete surat error:', err);
       setSuratList(prev => prev.filter(s => s.id !== id));
+      return true;
     }
   };
 

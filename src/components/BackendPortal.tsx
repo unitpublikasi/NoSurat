@@ -45,7 +45,7 @@ interface BackendPortalProps {
   onCreateSurat: (formData: any) => Promise<boolean>;
   onUpdateSurat?: (id: string, updatedData: Partial<SuratItem>) => Promise<boolean>;
   onUpdateSuratStatus: (id: string, status: StatusSurat) => Promise<void>;
-  onDeleteSurat: (id: string) => Promise<void>;
+  onDeleteSurat: (id: string) => Promise<boolean> | Promise<void>;
   onCreateUser: (userData: any) => Promise<boolean>;
   onUpdateUser?: (id: string, userData: Partial<User>) => Promise<boolean>;
   onDeleteUser?: (id: string) => Promise<boolean>;
@@ -706,20 +706,20 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                               </button>
                             )}
 
-                            {/* Admin Delete */}
-                            {currentUser?.role === 'admin' && (
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Yakin ingin menghapus nomor surat ${surat.nomorSurat}?`)) {
-                                    onDeleteSurat(surat.id);
-                                  }
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50"
-                                title="Hapus Permanen (Super Admin)"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            {/* Delete Surat Button */}
+                            <button
+                              onClick={async () => {
+                                if (confirm(`Yakin ingin menghapus permanen surat "${surat.nomorSurat}"?\n(${surat.perihal})`)) {
+                                  await onDeleteSurat(surat.id);
+                                  onRefresh();
+                                }
+                              }}
+                              className="p-1.5 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 font-bold rounded-lg text-xs flex items-center gap-1 border border-red-200 transition-colors"
+                              title="Hapus Surat Permanen"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                              <span>Hapus</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
