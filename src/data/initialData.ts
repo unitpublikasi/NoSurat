@@ -100,64 +100,82 @@ export const INITIAL_LETTER_TYPES: LetterType[] = [
 
 export const INITIAL_USERS: User[] = [
   {
-    id: 'usr-1',
-    username: 'admin.pkmk',
-    name: 'Rina Sulistyaningsih, M.Kom',
-    email: 'rina.sulistya@ugm.ac.id',
+    id: 'usr-irvan',
+    username: 'irvan',
+    password: 'pkmk4ugm!',
+    name: 'Irvan',
+    email: 'irvan@pkmkugm.id',
     role: 'admin',
-    roleName: 'Administrator Sistem',
+    roleName: 'Administrator PKMK',
+    divisiCode: 'SEKRED',
+    divisiName: 'Sekretariat & Keuangan',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    createdAt: '2026-01-01'
+  },
+  {
+    id: 'usr-manager',
+    username: 'manager',
+    password: 'managerPKMK',
+    name: 'Manager PKMK',
+    email: 'manager@pkmkugm.id',
+    role: 'staff',
+    roleName: 'Manager Staf',
     divisiCode: 'SEKRED',
     divisiName: 'Sekretariat & Keuangan',
     avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-01-10'
+    createdAt: '2026-01-01'
   },
   {
-    id: 'usr-2',
-    username: 'sekred.pkmk',
-    name: 'Siti Rahmawati, A.Md',
-    email: 'siti.rahmawati@pkmkugm.id',
-    role: 'sekretariat',
-    roleName: 'Kepala Sekretariat & Tata Usaha',
+    id: 'usr-keuangan',
+    username: 'keuangan',
+    password: 'keuanganPKMK',
+    name: 'Keuangan PKMK',
+    email: 'keuangan@pkmkugm.id',
+    role: 'staff',
+    roleName: 'Staf Keuangan',
     divisiCode: 'SEKRED',
     divisiName: 'Sekretariat & Keuangan',
     avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-01-15'
+    createdAt: '2026-01-01'
   },
   {
-    id: 'usr-3',
-    username: 'staf.dmrs',
-    name: 'Budi Santoso, S.Kep, M.P.H.',
-    email: 'budi.santoso@pkmkugm.id',
-    role: 'staf',
-    roleName: 'Staf Divisi DMRS',
-    divisiCode: 'DMRS',
-    divisiName: 'Divisi Manajemen Rumah Sakit',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-02-01'
-  },
-  {
-    id: 'usr-4',
-    username: 'staf.dmm',
-    name: 'Dr. Tri Astuti, M.P.H.',
-    email: 'tri.astuti@pkmkugm.id',
-    role: 'staf',
-    roleName: 'Peneliti Divisi Mutu',
-    divisiCode: 'DMM',
-    divisiName: 'Divisi Manajemen Mutu',
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-02-10'
-  },
-  {
-    id: 'usr-5',
-    username: 'pimpinan.pkmk',
-    name: 'Prof. Dr. Laksono Trisnantoro, M.Sc., Ph.D.',
-    email: 'laksono.trisnantoro@ugm.ac.id',
-    role: 'verifikator',
-    roleName: 'Pengarah / Verifikator Utama',
+    id: 'usr-operasional',
+    username: 'operasional',
+    password: 'operasionalPKMK',
+    name: 'Operasional PKMK',
+    email: 'operasional@pkmkugm.id',
+    role: 'staff',
+    roleName: 'Staf Operasional',
     divisiCode: 'SEKRED',
     divisiName: 'Sekretariat & Keuangan',
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-01-01'
+    createdAt: '2026-01-01'
+  },
+  {
+    id: 'usr-koordinator',
+    username: 'koordinator',
+    password: 'koordinatorPKMK',
+    name: 'Koordinator PKMK',
+    email: 'koordinator@pkmkugm.id',
+    role: 'staff',
+    roleName: 'Koordinator Staf',
+    divisiCode: 'SEKRED',
+    divisiName: 'Sekretariat & Keuangan',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    createdAt: '2026-01-01'
+  },
+  {
+    id: 'usr-sekretariat',
+    username: 'sekretariat',
+    password: 'sekretariatPKMK',
+    name: 'Sekretariat PKMK',
+    email: 'sekretariat@pkmkugm.id',
+    role: 'sekretariat',
+    roleName: 'Staf Sekretariat',
+    divisiCode: 'SEKRED',
+    divisiName: 'Sekretariat & Keuangan',
+    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+    createdAt: '2026-01-01'
   }
 ];
 

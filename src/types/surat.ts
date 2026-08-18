@@ -1,10 +1,11 @@
-export type Role = 'admin' | 'sekretariat' | 'staf' | 'verifikator';
+export type Role = 'admin' | 'sekretariat' | 'staf' | 'verifikator' | 'staff';
 
 export type StatusSurat = 'Aktif' | 'Dibatalkan' | 'Arsip';
 
 export interface User {
   id: string;
   username: string;
+  password?: string;
   name: string;
   email: string;
   role: Role;

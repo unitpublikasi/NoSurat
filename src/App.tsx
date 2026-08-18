@@ -28,6 +28,7 @@ import {
   StatusSurat,
   PublicStats
 } from './types/surat';
+import { getNextUrutNumber, generateLetterNumberString } from './utils/numberGenerator';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'public' | 'backend'>('public');
@@ -142,19 +143,23 @@ export default function App() {
       console.error('Create letter error:', err);
       // Local fallback
       const year = new Date(formData.tglSurat).getFullYear();
-      const nextUrut = suratList.length + 1;
-      const formattedNo = String(nextUrut).padStart(3, '0');
-      const rMonth = 'III';
-      const code = `${formattedNo}/PKMK/${formData.jenisSuratCode}/FK-KMK/${rMonth}/${year}`;
+      const nextUrut = getNextUrutNumber(suratList, year);
+      const code = generateLetterNumberString(
+        nextUrut,
+        formData.jenisSuratCode,
+        formData.divisiCode,
+        formData.tglSurat,
+        letterTypes
+      );
 
       const newSurat: SuratItem = {
         id: `srt-${Date.now()}`,
         nomorSurat: code,
         nomorUrut: nextUrut,
         jenisSuratCode: formData.jenisSuratCode,
-        jenisSuratName: formData.jenisSuratCode,
+        jenisSuratName: letterTypes.find(t => t.code === formData.jenisSuratCode)?.name || formData.jenisSuratCode,
         divisiCode: formData.divisiCode,
-        divisiName: formData.divisiCode,
+        divisiName: divisions.find(d => d.code === formData.divisiCode)?.name || formData.divisiCode,
         perihal: formData.perihal,
         tglSurat: formData.tglSurat,
         tglDibuat: new Date().toISOString(),
@@ -163,7 +168,7 @@ export default function App() {
         pembuatUserId: currentUser?.id || 'usr-1',
         pembuatUserName: currentUser?.name || 'Staf PKMK',
         status: 'Aktif',
-        qrCodeHash: `PKMK-${year}-${formattedNo}-VERIFIED`,
+        qrCodeHash: `PKMK-${year}-${String(nextUrut).padStart(3, '0')}-VERIFIED`,
         catatan: formData.catatan,
         lampiranInfo: formData.lampiranInfo
       };

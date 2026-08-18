@@ -67,17 +67,47 @@ function generateLetterNumber(
   return `${formattedNo}/PKMK/${jenisSuratCode}/FK-KMK/${romanMonth}/${year}`;
 }
 
-// Get highest sequential number for a given year (Starts from 1519)
-function getNextSequenceNumber(year: number): number {
-  const lettersInYear = suratList.filter(s => {
-    const sYear = new Date(s.tglSurat).getFullYear();
-    return sYear === year;
-  });
+// Get highest sequential number for a given year or across existing data, continuing sequentially
+function getNextSequenceNumber(year?: number): number {
+  let maxFound = 0;
 
-  if (lettersInYear.length === 0) return 1519;
+  for (const s of suratList) {
+    if (year) {
+      const sYear = new Date(s.tglSurat).getFullYear();
+      if (sYear !== year) continue;
+    }
 
-  const maxUrut = Math.max(...lettersInYear.map(s => s.nomorUrut || 0));
-  return Math.max(maxUrut + 1, 1519);
+    // Check numeric property
+    if (typeof s.nomorUrut === 'number' && !isNaN(s.nomorUrut) && s.nomorUrut > maxFound) {
+      maxFound = s.nomorUrut;
+    }
+
+    // Parse prefix number / range from nomorSurat
+    if (s.nomorSurat) {
+      const match = s.nomorSurat.match(/^([0-9]+)(?:-([0-9]+))?\//);
+      if (match) {
+        if (match[2]) {
+          const endRange = parseInt(match[2], 10);
+          if (!isNaN(endRange) && endRange > maxFound) maxFound = endRange;
+        }
+        const startNo = parseInt(match[1], 10);
+        if (!isNaN(startNo) && startNo > maxFound) maxFound = startNo;
+      } else {
+        const leadingMatch = s.nomorSurat.match(/^([0-9]+)/);
+        if (leadingMatch) {
+          const val = parseInt(leadingMatch[1], 10);
+          if (!isNaN(val) && val > maxFound) maxFound = val;
+        }
+      }
+    }
+  }
+
+  // Fallback: If filtered by year but year had no records, check entire list
+  if (maxFound === 0 && year && suratList.length > 0) {
+    return getNextSequenceNumber(undefined);
+  }
+
+  return maxFound > 0 ? maxFound + 1 : 1;
 }
 
 // ==========================================
@@ -220,6 +250,14 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({
       success: false,
       message: 'Username tidak ditemukan.'
+    });
+  }
+
+  // Check password
+  if (user.password && user.password !== password) {
+    return res.status(401).json({
+      success: false,
+      message: 'Password tidak sesuai. Silakan periksa kembali password Anda.'
     });
   }
 
@@ -462,7 +500,7 @@ app.get('/api/admin/users', (req, res) => {
 
 // POST /api/admin/users - Create Multi-User Account
 app.post('/api/admin/users', (req, res) => {
-  const { name, username, email, role, divisiCode } = req.body;
+  const { name, username, password, email, role, divisiCode } = req.body;
 
   if (!name || !username || !email || !role || !divisiCode) {
     return res.status(400).json({
@@ -484,12 +522,14 @@ app.post('/api/admin/users', (req, res) => {
     admin: 'Administrator Sistem',
     sekretariat: 'Staf Sekretariat',
     staf: 'Staf Divisi / Unit',
+    staff: 'Staf Divisi / Unit',
     verifikator: 'Verifikator / Pimpinan'
   };
 
   const newUser: User = {
     id: `usr-${Date.now()}`,
     username,
+    password: password || 'pkmk4ugm!',
     name,
     email,
     role,

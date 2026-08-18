@@ -32,6 +32,11 @@ import {
   Role,
   StatusSurat
 } from '../types/surat';
+import {
+  extractHighestUrut,
+  getNextUrutNumber,
+  generateLetterNumberString
+} from '../utils/numberGenerator';
 
 interface BackendPortalProps {
   currentUser: User | null;
@@ -135,8 +140,12 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
-  // Preview generated number state
+  // Preview generated number state & sequence info
   const [previewNumber, setPreviewNumber] = useState('');
+  const [autoNextUrut, setAutoNextUrut] = useState(1520);
+  const [highestExistingUrut, setHighestExistingUrut] = useState(1519);
+  const [isCustomUrut, setIsCustomUrut] = useState(false);
+  const [customUrutInput, setCustomUrutInput] = useState('');
 
   // Search & Filter State inside Backend Table
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,6 +156,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
   // New User Form State
   const [newUserName, setNewUserName] = useState('');
   const [newUserUsername, setNewUserUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('pkmk4ugm!');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<Role>('staf');
   const [newUserDivisi, setNewUserDivisi] = useState('DMRS');
@@ -163,23 +173,29 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
     }
   }, [currentUser]);
 
-  // Fetch / Calculate Preview Number
+  // Fetch / Calculate Preview Number & Auto Increment Sequence
   useEffect(() => {
     const year = new Date(tglSurat).getFullYear() || 2026;
-    const lettersInYear = suratList.filter(s => new Date(s.tglSurat).getFullYear() === year);
-    const nextUrut = lettersInYear.length > 0 ? Math.max(...lettersInYear.map(s => s.nomorUrut || 0)) + 1 : 1;
-    
-    const formattedNo = String(nextUrut).padStart(3, '0');
-    const month = new Date(tglSurat).getMonth() + 1;
-    const romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
-    const rMonth = romanMonths[month - 1] || 'I';
+    const highest = extractHighestUrut(suratList, year);
+    const nextAuto = getNextUrutNumber(suratList, year);
 
-    if (jenisSuratCode === 'SPK' || jenisSuratCode === 'ND') {
-      setPreviewNumber(`${formattedNo}/PKMK/${jenisSuratCode}/${divisiCode}/FK-KMK/${rMonth}/${year}`);
-    } else {
-      setPreviewNumber(`${formattedNo}/PKMK/${jenisSuratCode}/FK-KMK/${rMonth}/${year}`);
-    }
-  }, [tglSurat, jenisSuratCode, divisiCode, suratList]);
+    setHighestExistingUrut(highest);
+    setAutoNextUrut(nextAuto);
+
+    const effectiveUrut = isCustomUrut && parseInt(customUrutInput, 10) > 0
+      ? parseInt(customUrutInput, 10)
+      : nextAuto;
+
+    const formatted = generateLetterNumberString(
+      effectiveUrut,
+      jenisSuratCode,
+      divisiCode,
+      tglSurat,
+      letterTypes
+    );
+
+    setPreviewNumber(formatted);
+  }, [tglSurat, jenisSuratCode, divisiCode, suratList, letterTypes, isCustomUrut, customUrutInput]);
 
   // Handle create letter submission
   const handleSubmitNewSurat = async (e: React.FormEvent) => {
@@ -192,6 +208,10 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
       return;
     }
 
+    const effectiveUrut = isCustomUrut && parseInt(customUrutInput, 10) > 0
+      ? parseInt(customUrutInput, 10)
+      : autoNextUrut;
+
     setIsSubmitting(true);
     try {
       const ok = await onCreateSurat({
@@ -203,7 +223,8 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
         pengajuName: pengajuName.trim() || (currentUser ? currentUser.name : 'Staf PKMK'),
         pembuatUserId: currentUser ? currentUser.id : 'usr-1',
         catatan: catatan.trim(),
-        lampiranInfo: lampiranInfo.trim()
+        lampiranInfo: lampiranInfo.trim(),
+        customUrut: effectiveUrut
       });
 
       if (ok) {
@@ -212,6 +233,8 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
         setDitujukanKepada('');
         setCatatan('');
         setLampiranInfo('');
+        setIsCustomUrut(false);
+        setCustomUrutInput('');
         setTimeout(() => {
           setActiveTab('list');
           setFormSuccess(null);
@@ -237,6 +260,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
     const ok = await onCreateUser({
       name: newUserName,
       username: newUserUsername,
+      password: newUserPassword || 'pkmk4ugm!',
       email: newUserEmail,
       role: newUserRole,
       divisiCode: newUserDivisi
@@ -246,6 +270,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
       setUserFormMsg({ type: 'success', text: `Akun multi-user ${newUserName} berhasil dibuat.` });
       setNewUserName('');
       setNewUserUsername('');
+      setNewUserPassword('pkmk4ugm!');
       setNewUserEmail('');
     } else {
       setUserFormMsg({ type: 'error', text: 'Username sudah digunakan atau terjadi kesalahan.' });
@@ -750,6 +775,61 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                 </div>
               </div>
 
+              {/* Auto Increment Status Banner */}
+              <div className="mb-5 p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-md">
+                    #{isCustomUrut && parseInt(customUrutInput, 10) > 0 ? customUrutInput : autoNextUrut}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>Auto-Increment Nomor Surat Aktif</span>
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold border border-emerald-200">
+                        Melanjutkan Data
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Nomor terakhir dalam arsip: <strong className="text-slate-900 font-mono">#{highestExistingUrut}</strong> → Nomor berikutnya: <strong className="text-amber-700 font-mono font-bold">#{autoNextUrut}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="text-[11px] text-slate-600 font-semibold flex items-center gap-1.5 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-slate-200 hover:border-amber-400 shadow-2xs">
+                    <input
+                      type="checkbox"
+                      checked={isCustomUrut}
+                      onChange={(e) => {
+                        setIsCustomUrut(e.target.checked);
+                        if (e.target.checked && !customUrutInput) {
+                          setCustomUrutInput(String(autoNextUrut));
+                        }
+                      }}
+                      className="rounded text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>Kustomisasi Nomor Urut</span>
+                  </label>
+                </div>
+              </div>
+
+              {isCustomUrut && (
+                <div className="mb-4 p-3 bg-slate-50 border border-slate-300 rounded-xl flex items-center gap-3">
+                  <label className="text-xs font-bold text-slate-700 whitespace-nowrap">
+                    Nomor Urut Manual:
+                  </label>
+                  <input
+                    type="number"
+                    value={customUrutInput}
+                    onChange={(e) => setCustomUrutInput(e.target.value)}
+                    placeholder={String(autoNextUrut)}
+                    className="w-32 py-1.5 px-3 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold"
+                  />
+                  <span className="text-[11px] text-slate-500">
+                    (Gunakan jika perlu mengisi nomor sela atau reservasi khusus)
+                  </span>
+                </div>
+              )}
+
               {formError && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2 font-medium">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
@@ -943,6 +1023,16 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
 
                 <div className="space-y-2 text-xs text-slate-300 font-medium">
                   <div className="flex justify-between py-1 border-b border-slate-800">
+                    <span className="text-slate-400">Nomor Urut Baru:</span>
+                    <span className="font-mono font-bold text-amber-300">
+                      #{isCustomUrut && parseInt(customUrutInput, 10) > 0 ? customUrutInput : autoNextUrut}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800">
+                    <span className="text-slate-400">Nomor Terakhir Tercatat:</span>
+                    <span className="font-mono font-bold text-slate-200">#{highestExistingUrut}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-800">
                     <span className="text-slate-400">Instansi:</span>
                     <span className="font-bold text-white">PKMK FK-KMK UGM</span>
                   </div>
@@ -1095,6 +1185,18 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                     onChange={(e) => setNewUserUsername(e.target.value)}
                     placeholder="Cth: ahmad.dmrs"
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                  <input
+                    type="text"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    placeholder="Masukkan password"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
                     required
                   />
                 </div>
