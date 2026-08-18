@@ -142,8 +142,8 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
 
   // Preview generated number state & sequence info
   const [previewNumber, setPreviewNumber] = useState('');
-  const [autoNextUrut, setAutoNextUrut] = useState(1520);
-  const [highestExistingUrut, setHighestExistingUrut] = useState(1519);
+  const [autoNextUrut, setAutoNextUrut] = useState(() => getNextUrutNumber(suratList));
+  const [highestExistingUrut, setHighestExistingUrut] = useState(() => extractHighestUrut(suratList));
   const [isCustomUrut, setIsCustomUrut] = useState(false);
   const [customUrutInput, setCustomUrutInput] = useState('');
 
