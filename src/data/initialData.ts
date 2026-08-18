@@ -191,7 +191,7 @@ export const INITIAL_USERS: User[] = [
     password: 'sekretariatPKMK',
     name: 'Sekretariat PKMK',
     email: 'sekretariat@pkmkugm.id',
-    role: 'sekretariat',
+    role: 'staff',
     roleName: 'Staf Sekretariat',
     divisiCode: 'SEKRED',
     divisiName: 'Sekretariat & Keuangan',
