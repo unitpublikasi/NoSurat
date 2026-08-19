@@ -261,7 +261,7 @@ export default function App() {
   };
 
   // Create User
-  const handleCreateUser = async (userData: any): Promise<boolean> => {
+  const handleCreateUser = async (userData: any): Promise<{ success: boolean; message: string; data?: User }> => {
     try {
       const res = await fetch('/api/admin/users', {
         method: 'POST',
@@ -269,20 +269,47 @@ export default function App() {
         body: JSON.stringify(userData)
       });
 
-      const data = await res.json();
-      if (data.success && data.data) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && data.data) {
         setUsersList(prev => [...prev, data.data]);
         fetchDataFromBackend();
-        return true;
+        return { success: true, message: data.message || 'Pengguna berhasil ditambahkan.', data: data.data };
       }
-      return false;
+      return { success: false, message: data.message || 'Gagal menambahkan akun pengguna.' };
     } catch (err) {
-      return false;
+      console.warn('Backend create user fallback to local state:', err);
+      const roleNames: Record<string, string> = {
+        admin: 'Administrator Sistem',
+        sekretariat: 'Staf Sekretariat',
+        staf: 'Staf Divisi / Unit',
+        staff: 'Staf Divisi / Unit',
+        verifikator: 'Verifikator / Pimpinan'
+      };
+      const divObj = divisions.find(d => d.code === userData.divisiCode);
+      const trimmedName = (userData.name || '').trim();
+      const trimmedUsername = (userData.username || '').trim();
+      
+      const localUser: User = {
+        id: `usr-${Date.now()}`,
+        username: trimmedUsername,
+        password: (userData.password || '').trim() || 'pkmk4ugm!',
+        name: trimmedName,
+        email: (userData.email || '').trim() || `${trimmedUsername.toLowerCase()}@pkmkugm.id`,
+        role: userData.role || 'staf',
+        roleName: roleNames[userData.role] || 'Staf Divisi / Unit',
+        divisiCode: userData.divisiCode || 'SEKRED',
+        divisiName: divObj ? divObj.name : (userData.divisiCode || 'Sekretariat & Keuangan'),
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(trimmedName)}`,
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+
+      setUsersList(prev => [...prev, localUser]);
+      return { success: true, message: `Pengguna ${localUser.name} berhasil ditambahkan (Lokal).`, data: localUser };
     }
   };
 
   // Update User
-  const handleUpdateUser = async (id: string, userData: Partial<User>): Promise<boolean> => {
+  const handleUpdateUser = async (id: string, userData: Partial<User>): Promise<{ success: boolean; message: string }> => {
     try {
       const res = await fetch(`/api/admin/users/${id}`, {
         method: 'PUT',
@@ -290,8 +317,8 @@ export default function App() {
         body: JSON.stringify(userData)
       });
 
-      const data = await res.json();
-      if (data.success && data.data) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && data.data) {
         setUsersList(prev =>
           prev.map(u => (u.id === id ? { ...u, ...data.data } : u))
         );
@@ -299,41 +326,39 @@ export default function App() {
           setCurrentUser(data.data);
         }
         fetchDataFromBackend();
-        return true;
+        return { success: true, message: data.message || 'Data pengguna berhasil diperbarui.' };
       } else {
-        alert(data.message || 'Gagal memperbarui pengguna.');
-        return false;
+        return { success: false, message: data.message || 'Gagal memperbarui pengguna.' };
       }
     } catch (err) {
       setUsersList(prev =>
         prev.map(u => (u.id === id ? { ...u, ...userData } : u))
       );
-      return true;
+      return { success: true, message: 'Data pengguna diperbarui (Lokal).' };
     }
   };
 
   // Delete User
-  const handleDeleteUser = async (id: string): Promise<boolean> => {
+  const handleDeleteUser = async (id: string): Promise<{ success: boolean; message: string }> => {
     try {
       const res = await fetch(`/api/admin/users/${id}`, {
         method: 'DELETE'
       });
 
-      const data = await res.json();
-      if (data.success) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
         setUsersList(prev => prev.filter(u => u.id !== id));
         if (currentUser?.id === id) {
           setCurrentUser(null);
         }
         fetchDataFromBackend();
-        return true;
+        return { success: true, message: data.message || 'Pengguna berhasil dihapus.' };
       } else {
-        alert(data.message || 'Gagal menghapus pengguna.');
-        return false;
+        return { success: false, message: data.message || 'Gagal menghapus pengguna.' };
       }
     } catch (err) {
       setUsersList(prev => prev.filter(u => u.id !== id));
-      return true;
+      return { success: true, message: 'Pengguna dihapus (Lokal).' };
     }
   };
 

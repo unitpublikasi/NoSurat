@@ -502,22 +502,29 @@ app.get('/api/admin/users', (req, res) => {
 app.post('/api/admin/users', (req, res) => {
   const { name, username, password, email, role, divisiCode } = req.body;
 
-  if (!name || !username || !email || !role || !divisiCode) {
+  const trimmedName = (name || '').trim();
+  const trimmedUsername = (username || '').trim();
+  const trimmedEmail = (email || '').trim();
+
+  if (!trimmedName || !trimmedUsername) {
     return res.status(400).json({
       success: false,
-      message: 'Mohon isi semua bidang pengguna baru.'
+      message: 'Nama Lengkap dan Username login wajib diisi.'
     });
   }
 
-  const existing = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+  const existing = users.find(u => u.username.toLowerCase() === trimmedUsername.toLowerCase());
   if (existing) {
     return res.status(409).json({
       success: false,
-      message: 'Username sudah digunakan oleh akun lain.'
+      message: `Username "${trimmedUsername}" sudah digunakan oleh akun lain.`
     });
   }
 
-  const divObj = divisions.find(d => d.code === divisiCode);
+  const targetRole = role || 'staf';
+  const targetDivisi = divisiCode || divisions[0]?.code || 'SEKRED';
+  const divObj = divisions.find(d => d.code.toUpperCase() === targetDivisi.toUpperCase());
+
   const roleNames: Record<string, string> = {
     admin: 'Administrator Sistem',
     sekretariat: 'Staf Sekretariat',
@@ -528,31 +535,42 @@ app.post('/api/admin/users', (req, res) => {
 
   const newUser: User = {
     id: `usr-${Date.now()}`,
-    username,
-    password: password || 'pkmk4ugm!',
-    name,
-    email,
-    role,
-    roleName: roleNames[role] || role,
-    divisiCode,
-    divisiName: divObj ? divObj.name : divisiCode,
-    avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
+    username: trimmedUsername,
+    password: (password || '').trim() || 'pkmk4ugm!',
+    name: trimmedName,
+    email: trimmedEmail || `${trimmedUsername.toLowerCase()}@pkmkugm.id`,
+    role: targetRole as any,
+    roleName: roleNames[targetRole] || targetRole,
+    divisiCode: divObj ? divObj.code : targetDivisi,
+    divisiName: divObj ? divObj.name : targetDivisi,
+    avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(trimmedName)}`,
     createdAt: new Date().toISOString().split('T')[0]
   };
 
   users.push(newUser);
 
+  // Record in Audit Trail
+  auditLogs.unshift({
+    id: `log-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    userId: newUser.id,
+    userName: newUser.name,
+    userRole: newUser.roleName,
+    action: 'CREATE',
+    details: `Menambahkan akun pengguna baru: ${newUser.name} (${newUser.username}) [${newUser.roleName}] - ${newUser.divisiName}`,
+  });
+
   res.json({
     success: true,
     data: newUser,
-    message: 'Pengguna baru berhasil ditambahkan.'
+    message: `Pengguna ${newUser.name} (${newUser.username}) berhasil ditambahkan.`
   });
 });
 
 // PUT /api/admin/users/:id - Update User Account (Admin CRUD)
 app.put('/api/admin/users/:id', (req, res) => {
   const { id } = req.params;
-  const { name, username, email, role, divisiCode } = req.body;
+  const { name, username, password, email, role, divisiCode } = req.body;
 
   const index = users.findIndex(u => u.id === id);
   if (index === -1) {
@@ -561,9 +579,10 @@ app.put('/api/admin/users/:id', (req, res) => {
 
   // Check username uniqueness if changed
   if (username) {
-    const duplicate = users.find(u => u.id !== id && u.username.toLowerCase() === username.toLowerCase());
+    const trimmedUsername = username.trim();
+    const duplicate = users.find(u => u.id !== id && u.username.toLowerCase() === trimmedUsername.toLowerCase());
     if (duplicate) {
-      return res.status(409).json({ success: false, message: 'Username sudah digunakan oleh akun lain.' });
+      return res.status(409).json({ success: false, message: `Username "${trimmedUsername}" sudah digunakan oleh akun lain.` });
     }
   }
 
@@ -571,26 +590,26 @@ app.put('/api/admin/users/:id', (req, res) => {
     admin: 'Administrator Sistem',
     sekretariat: 'Staf Sekretariat',
     staf: 'Staf Divisi / Unit',
+    staff: 'Staf Divisi / Unit',
     verifikator: 'Verifikator / Pimpinan'
   };
 
   const user = users[index];
-  if (name) user.name = name;
-  if (username) user.username = username;
-  if (email) user.email = email;
+  if (name) {
+    user.name = name.trim();
+    user.avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`;
+  }
+  if (username) user.username = username.trim();
+  if (password && password.trim()) user.password = password.trim();
+  if (email) user.email = email.trim();
   if (role) {
     user.role = role;
     user.roleName = roleNames[role] || role;
   }
   if (divisiCode) {
     user.divisiCode = divisiCode;
-    const divObj = divisions.find(d => d.code === divisiCode);
+    const divObj = divisions.find(d => d.code.toUpperCase() === divisiCode.toUpperCase());
     if (divObj) user.divisiName = divObj.name;
-  }
-
-  // Update avatar URL if name changed
-  if (name) {
-    user.avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`;
   }
 
   auditLogs.unshift({
@@ -600,13 +619,13 @@ app.put('/api/admin/users/:id', (req, res) => {
     userName: user.name,
     userRole: user.roleName,
     action: 'UPDATE',
-    details: `Memperbarui profil pengguna ${user.name} (${user.username})`,
+    details: `Memperbarui akun pengguna: ${user.name} (${user.username}) [${user.roleName}]`,
   });
 
   res.json({
     success: true,
     data: user,
-    message: 'Data pengguna berhasil diperbarui.'
+    message: `Data pengguna ${user.name} berhasil diperbarui.`
   });
 });
 
@@ -620,7 +639,7 @@ app.delete('/api/admin/users/:id', (req, res) => {
   }
 
   if (users.length <= 1) {
-    return res.status(400).json({ success: false, message: 'Sistem harus memiliki setidaknya satu pengguna.' });
+    return res.status(400).json({ success: false, message: 'Sistem harus memiliki setidaknya satu pengguna pengelola.' });
   }
 
   const deletedUser = users.splice(index, 1)[0];
@@ -637,7 +656,7 @@ app.delete('/api/admin/users/:id', (req, res) => {
 
   res.json({
     success: true,
-    message: `Pengguna ${deletedUser.name} berhasil dihapus.`
+    message: `Pengguna ${deletedUser.name} (${deletedUser.username}) berhasil dihapus.`
   });
 });
 

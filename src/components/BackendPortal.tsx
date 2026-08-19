@@ -52,9 +52,9 @@ interface BackendPortalProps {
   onUpdateSurat?: (id: string, updatedData: Partial<SuratItem>) => Promise<boolean>;
   onUpdateSuratStatus: (id: string, status: StatusSurat) => Promise<void>;
   onDeleteSurat: (id: string) => Promise<boolean> | Promise<void>;
-  onCreateUser: (userData: any) => Promise<boolean>;
-  onUpdateUser?: (id: string, userData: Partial<User>) => Promise<boolean>;
-  onDeleteUser?: (id: string) => Promise<boolean>;
+  onCreateUser: (userData: any) => Promise<{ success: boolean; message: string; data?: User } | boolean>;
+  onUpdateUser?: (id: string, userData: Partial<User>) => Promise<{ success: boolean; message: string } | boolean>;
+  onDeleteUser?: (id: string) => Promise<{ success: boolean; message: string } | boolean>;
   onOpenAiAssist: (draft: string, type: string, dest: string, callback: (suggested: string) => void) => void;
   onSelectSurat: (surat: SuratItem) => void;
   onRefresh: () => void;
@@ -168,8 +168,10 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
   const [newUserPassword, setNewUserPassword] = useState('pkmk4ugm!');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<Role>('staf');
-  const [newUserDivisi, setNewUserDivisi] = useState('DMRS');
+  const [newUserDivisi, setNewUserDivisi] = useState('SEKRED');
   const [userFormMsg, setUserFormMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
 
   // Copy indicator
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -261,28 +263,42 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
     e.preventDefault();
     setUserFormMsg(null);
 
-    if (!newUserName || !newUserUsername || !newUserEmail) {
-      setUserFormMsg({ type: 'error', text: 'Mohon isi semua data wajib pengguna.' });
+    const trimmedName = newUserName.trim();
+    const trimmedUsername = newUserUsername.trim();
+    const trimmedEmail = newUserEmail.trim();
+
+    if (!trimmedName || !trimmedUsername) {
+      setUserFormMsg({ type: 'error', text: 'Nama Lengkap dan Username login wajib diisi.' });
       return;
     }
 
-    const ok = await onCreateUser({
-      name: newUserName,
-      username: newUserUsername,
-      password: newUserPassword || 'pkmk4ugm!',
-      email: newUserEmail,
-      role: newUserRole,
-      divisiCode: newUserDivisi
-    });
+    setIsCreatingUser(true);
+    try {
+      const res = await onCreateUser({
+        name: trimmedName,
+        username: trimmedUsername,
+        password: newUserPassword ? newUserPassword.trim() : 'pkmk4ugm!',
+        email: trimmedEmail || `${trimmedUsername.toLowerCase()}@pkmkugm.id`,
+        role: newUserRole,
+        divisiCode: newUserDivisi || (divisions[0]?.code || 'SEKRED')
+      });
 
-    if (ok) {
-      setUserFormMsg({ type: 'success', text: `Akun multi-user ${newUserName} berhasil dibuat.` });
-      setNewUserName('');
-      setNewUserUsername('');
-      setNewUserPassword('pkmk4ugm!');
-      setNewUserEmail('');
-    } else {
-      setUserFormMsg({ type: 'error', text: 'Username sudah digunakan atau terjadi kesalahan.' });
+      if (res && (res === true || (typeof res === 'object' && res.success))) {
+        const successText = (typeof res === 'object' && res.message) ? res.message : `Akun pengguna ${trimmedName} (${trimmedUsername}) berhasil dibuat.`;
+        setUserFormMsg({ type: 'success', text: successText });
+        setNewUserName('');
+        setNewUserUsername('');
+        setNewUserPassword('pkmk4ugm!');
+        setNewUserEmail('');
+        onRefresh();
+      } else {
+        const errorText = (typeof res === 'object' && res.message) ? res.message : 'Username sudah digunakan atau terjadi kesalahan input.';
+        setUserFormMsg({ type: 'error', text: errorText });
+      }
+    } catch (err: any) {
+      setUserFormMsg({ type: 'error', text: err?.message || 'Terjadi kesalahan sistem saat membuat pengguna.' });
+    } finally {
+      setIsCreatingUser(false);
     }
   };
 
@@ -351,15 +367,17 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
 
     try {
       if (onUpdateUser) {
-        const ok = await onUpdateUser(editingUser.id, editUserForm);
-        if (ok) {
+        const res = await onUpdateUser(editingUser.id, editUserForm);
+        if (res && (res === true || (typeof res === 'object' && res.success))) {
           setEditingUser(null);
+          onRefresh();
         } else {
-          setEditUserMsg('Gagal memperbarui data pengguna.');
+          const errMsg = (typeof res === 'object' && res.message) ? res.message : 'Gagal memperbarui data pengguna.';
+          setEditUserMsg(errMsg);
         }
       }
-    } catch (err) {
-      setEditUserMsg('Terjadi kesalahan saat memperbarui akun pengguna.');
+    } catch (err: any) {
+      setEditUserMsg(err?.message || 'Terjadi kesalahan saat memperbarui akun pengguna.');
     } finally {
       setEditUserSubmitting(false);
     }
@@ -367,11 +385,18 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
 
   // Delete User
   const handleDeleteUserClick = async (user: User) => {
+    if (usersList.length <= 1) {
+      alert('Sistem harus memiliki setidaknya satu pengguna pengelola.');
+      return;
+    }
     if (confirm(`Yakin ingin menghapus pengguna "${user.name}" (${user.username})?`)) {
       if (onDeleteUser) {
-        const ok = await onDeleteUser(user.id);
-        if (ok) {
+        const res = await onDeleteUser(user.id);
+        if (res && (res === true || (typeof res === 'object' && res.success))) {
           onRefresh();
+        } else {
+          const errMsg = (typeof res === 'object' && res.message) ? res.message : 'Gagal menghapus pengguna.';
+          alert(errMsg);
         }
       }
     }
@@ -1104,10 +1129,34 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
             
             {/* Users List */}
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5 text-amber-600" />
-                <span>Daftar Pengguna Multi-User Portal</span>
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-amber-600" />
+                  <span>Daftar Pengguna Multi-User Portal</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold">
+                    {usersList.length} Akun
+                  </span>
+                </h2>
+
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    placeholder="Cari user, nama, divisi..."
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-amber-500 focus:outline-none transition-colors"
+                  />
+                  {userSearchQuery && (
+                    <button
+                      onClick={() => setUserSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -1121,7 +1170,20 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
-                    {usersList.map((u) => (
+                    {usersList
+                      .filter(u => {
+                        if (!userSearchQuery.trim()) return true;
+                        const q = userSearchQuery.toLowerCase();
+                        return (
+                          u.name.toLowerCase().includes(q) ||
+                          u.username.toLowerCase().includes(q) ||
+                          u.email.toLowerCase().includes(q) ||
+                          u.divisiCode.toLowerCase().includes(q) ||
+                          (u.divisiName && u.divisiName.toLowerCase().includes(q)) ||
+                          u.roleName.toLowerCase().includes(q)
+                        );
+                      })
+                      .map((u) => (
                       <tr key={u.id} className="hover:bg-slate-50">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
@@ -1149,7 +1211,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                         </td>
 
                         <td className="py-3 px-4 font-semibold text-slate-700">
-                          {u.divisiCode}
+                          <span title={u.divisiName}>{u.divisiCode}</span>
                         </td>
 
                         <td className="py-3 px-4 text-right">
@@ -1211,7 +1273,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                     value={newUserName}
                     onChange={(e) => setNewUserName(e.target.value)}
                     placeholder="Cth: Dr. Ahmad Dahlan, M.P.H."
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-amber-500 focus:outline-none transition-colors"
                     required
                   />
                 </div>
@@ -1222,8 +1284,8 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                     type="text"
                     value={newUserUsername}
                     onChange={(e) => setNewUserUsername(e.target.value)}
-                    placeholder="Cth: ahmad.dmrs"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold"
+                    placeholder="Cth: ahmad.pkmk"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:border-amber-500 focus:outline-none transition-colors"
                     required
                   />
                 </div>
@@ -1235,7 +1297,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                     value={newUserPassword}
                     onChange={(e) => setNewUserPassword(e.target.value)}
                     placeholder="Masukkan password"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:border-amber-500 focus:outline-none transition-colors"
                     required
                   />
                 </div>
@@ -1247,7 +1309,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
                     placeholder="ahmad@ugm.ac.id"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-amber-500 focus:outline-none transition-colors"
                     required
                   />
                 </div>
@@ -1257,7 +1319,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                   <select
                     value={newUserRole}
                     onChange={(e) => setNewUserRole(e.target.value as Role)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-amber-500 focus:outline-none transition-colors"
                   >
                     <option value="admin">Administrator System (Full Access)</option>
                     <option value="sekretariat">Kepala / Staf Sekretariat</option>
@@ -1271,7 +1333,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                   <select
                     value={newUserDivisi}
                     onChange={(e) => setNewUserDivisi(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:border-amber-500 focus:outline-none transition-colors"
                   >
                     {divisions.map(d => (
                       <option key={d.id} value={d.code}>{d.code} - {d.name}</option>
@@ -1281,9 +1343,20 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
 
                 <button
                   type="submit"
-                  className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-all"
+                  disabled={isCreatingUser}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
                 >
-                  Simpan Pengguna Baru
+                  {isCreatingUser ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Menyimpan Pengguna...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      <span>Simpan Pengguna Baru</span>
+                    </>
+                  )}
                 </button>
               </form>
             </div>
