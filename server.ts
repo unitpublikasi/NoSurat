@@ -22,6 +22,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // In-Memory / File-Persisted Data Store for Multi-User state
 let divisions = [...INITIAL_DIVISIONS];
@@ -563,6 +564,7 @@ app.post('/api/admin/users', (req, res) => {
   res.json({
     success: true,
     data: newUser,
+    user: newUser,
     message: `Pengguna ${newUser.name} (${newUser.username}) berhasil ditambahkan.`
   });
 });
