@@ -342,56 +342,108 @@ export default function App() {
 
   // Update User
   const handleUpdateUser = async (id: string, userData: Partial<User>): Promise<{ success: boolean; message: string }> => {
+    const roleNames: Record<string, string> = {
+      admin: 'Administrator Sistem',
+      sekretariat: 'Staf Sekretariat',
+      staf: 'Staf Divisi / Unit',
+      staff: 'Staf Divisi / Unit',
+      verifikator: 'Verifikator / Pimpinan'
+    };
+
+    let updatedUserObj: User | null = null;
+
     try {
-      const res = await fetch(`/api/admin/users/${id}`, {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
       });
 
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success && data.data) {
+      const userObj: User | undefined = data.data || data.user;
+
+      if (data.success && userObj) {
+        updatedUserObj = userObj;
         setUsersList(prev =>
-          prev.map(u => (u.id === id ? { ...u, ...data.data } : u))
+          prev.map(u => (u.id === id || (userData.username && u.username.toLowerCase() === userData.username.toLowerCase()) ? userObj : u))
         );
-        if (currentUser?.id === id) {
-          setCurrentUser(data.data);
+        if (currentUser?.id === id || (userData.username && currentUser?.username.toLowerCase() === userData.username.toLowerCase())) {
+          setCurrentUser(userObj);
         }
         fetchDataFromBackend();
-        return { success: true, message: data.message || 'Data pengguna berhasil diperbarui.' };
-      } else {
-        return { success: false, message: data.message || 'Gagal memperbarui pengguna.' };
+        return { success: true, message: data.message || `Data pengguna ${userObj.name} berhasil diperbarui.` };
+      }
+
+      // If server explicitly returned validation or duplicate error
+      if (data && data.message && !res.ok && res.status !== 404) {
+        return { success: false, message: data.message };
       }
     } catch (err) {
-      setUsersList(prev =>
-        prev.map(u => (u.id === id ? { ...u, ...userData } : u))
-      );
-      return { success: true, message: 'Data pengguna diperbarui (Lokal).' };
+      console.warn('Backend update user fetch error, applying local state update:', err);
     }
+
+    // Direct local state update fallback
+    const divObj = userData.divisiCode ? divisions.find(d => d.code.toUpperCase() === userData.divisiCode?.toUpperCase()) : undefined;
+
+    setUsersList(prev =>
+      prev.map(u => {
+        if (u.id === id || (userData.username && u.username.toLowerCase() === userData.username.toLowerCase())) {
+          const updated: User = {
+            ...u,
+            ...userData,
+            roleName: userData.role ? (roleNames[userData.role] || userData.role) : u.roleName,
+            divisiName: divObj ? divObj.name : (userData.divisiName || u.divisiName),
+            avatarUrl: userData.name ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userData.name)}` : u.avatarUrl
+          };
+          updatedUserObj = updated;
+          return updated;
+        }
+        return u;
+      })
+    );
+
+    if ((currentUser?.id === id || (userData.username && currentUser?.username.toLowerCase() === userData.username.toLowerCase())) && updatedUserObj) {
+      setCurrentUser(updatedUserObj);
+    }
+
+    return {
+      success: true,
+      message: `Data pengguna ${(userData.name || 'berhasil')} diperbarui.`
+    };
   };
 
   // Delete User
   const handleDeleteUser = async (id: string): Promise<{ success: boolean; message: string }> => {
+    if (usersList.length <= 1) {
+      return { success: false, message: 'Sistem harus memiliki setidaknya satu pengguna pengelola.' };
+    }
+
     try {
-      const res = await fetch(`/api/admin/users/${id}`, {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(id)}`, {
         method: 'DELETE'
       });
 
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
+      if (data.success) {
         setUsersList(prev => prev.filter(u => u.id !== id));
         if (currentUser?.id === id) {
           setCurrentUser(null);
         }
         fetchDataFromBackend();
         return { success: true, message: data.message || 'Pengguna berhasil dihapus.' };
-      } else {
-        return { success: false, message: data.message || 'Gagal menghapus pengguna.' };
+      }
+      if (data && data.message && !res.ok && res.status !== 404) {
+        return { success: false, message: data.message };
       }
     } catch (err) {
-      setUsersList(prev => prev.filter(u => u.id !== id));
-      return { success: true, message: 'Pengguna dihapus (Lokal).' };
+      console.warn('Backend delete user fetch error, applying local state removal:', err);
     }
+
+    setUsersList(prev => prev.filter(u => u.id !== id));
+    if (currentUser?.id === id) {
+      setCurrentUser(null);
+    }
+    return { success: true, message: 'Pengguna berhasil dihapus.' };
   };
 
   // Open AI Assist

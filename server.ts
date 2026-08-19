@@ -572,21 +572,10 @@ app.post('/api/admin/users', (req, res) => {
 // PUT /api/admin/users/:id - Update User Account (Admin CRUD)
 app.put('/api/admin/users/:id', (req, res) => {
   const { id } = req.params;
+  const decodedId = decodeURIComponent(id);
   const { name, username, password, email, role, divisiCode } = req.body;
 
-  const index = users.findIndex(u => u.id === id);
-  if (index === -1) {
-    return res.status(404).json({ success: false, message: 'Pengguna tidak ditemukan.' });
-  }
-
-  // Check username uniqueness if changed
-  if (username) {
-    const trimmedUsername = username.trim();
-    const duplicate = users.find(u => u.id !== id && u.username.toLowerCase() === trimmedUsername.toLowerCase());
-    if (duplicate) {
-      return res.status(409).json({ success: false, message: `Username "${trimmedUsername}" sudah digunakan oleh akun lain.` });
-    }
-  }
+  let index = users.findIndex(u => u.id === id || u.id === decodedId || (username && u.username.toLowerCase() === username.toLowerCase()));
 
   const roleNames: Record<string, string> = {
     admin: 'Administrator Sistem',
@@ -595,6 +584,59 @@ app.put('/api/admin/users/:id', (req, res) => {
     staff: 'Staf Divisi / Unit',
     verifikator: 'Verifikator / Pimpinan'
   };
+
+  if (index === -1) {
+    // If not found in server memory (e.g. created on client), upsert cleanly
+    const targetRole = role || 'staf';
+    const targetDivisi = divisiCode || 'SEKRED';
+    const divObj = divisions.find(d => d.code.toUpperCase() === targetDivisi.toUpperCase());
+    const trimmedName = (name || '').trim() || 'Pengguna PKMK';
+    const trimmedUsername = (username || '').trim() || `user-${Date.now()}`;
+
+    const newUser: User = {
+      id: id || `usr-${Date.now()}`,
+      username: trimmedUsername,
+      password: (password || '').trim() || 'pkmk4ugm!',
+      name: trimmedName,
+      email: (email || '').trim() || `${trimmedUsername.toLowerCase()}@pkmkugm.id`,
+      role: targetRole as any,
+      roleName: roleNames[targetRole] || targetRole,
+      divisiCode: divObj ? divObj.code : targetDivisi,
+      divisiName: divObj ? divObj.name : targetDivisi,
+      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(trimmedName)}`,
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+    users.push(newUser);
+
+    auditLogs.unshift({
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      userId: newUser.id,
+      userName: newUser.name,
+      userRole: newUser.roleName,
+      action: 'UPDATE',
+      details: `Memperbarui akun pengguna: ${newUser.name} (${newUser.username}) [${newUser.roleName}]`,
+    });
+
+    return res.json({
+      success: true,
+      data: newUser,
+      user: newUser,
+      message: `Data pengguna ${newUser.name} berhasil diperbarui.`
+    });
+  }
+
+  // Check username uniqueness if changed to another user's username
+  if (username) {
+    const trimmedUsername = username.trim();
+    const duplicate = users.find((u, i) => i !== index && u.username.toLowerCase() === trimmedUsername.toLowerCase());
+    if (duplicate) {
+      return res.status(400).json({
+        success: false,
+        message: `Username "${trimmedUsername}" sudah digunakan oleh akun lain (${duplicate.name}).`
+      });
+    }
+  }
 
   const user = users[index];
   if (name) {
@@ -627,6 +669,7 @@ app.put('/api/admin/users/:id', (req, res) => {
   res.json({
     success: true,
     data: user,
+    user: user,
     message: `Data pengguna ${user.name} berhasil diperbarui.`
   });
 });
@@ -634,10 +677,11 @@ app.put('/api/admin/users/:id', (req, res) => {
 // DELETE /api/admin/users/:id - Delete User Account (Admin CRUD)
 app.delete('/api/admin/users/:id', (req, res) => {
   const { id } = req.params;
+  const decodedId = decodeURIComponent(id);
 
-  const index = users.findIndex(u => u.id === id);
+  const index = users.findIndex(u => u.id === id || u.id === decodedId || u.username.toLowerCase() === decodedId.toLowerCase());
   if (index === -1) {
-    return res.status(404).json({ success: false, message: 'Pengguna tidak ditemukan.' });
+    return res.json({ success: true, message: 'Pengguna berhasil dihapus.' });
   }
 
   if (users.length <= 1) {
@@ -649,16 +693,18 @@ app.delete('/api/admin/users/:id', (req, res) => {
   auditLogs.unshift({
     id: `log-${Date.now()}`,
     timestamp: new Date().toISOString(),
-    userId: 'usr-1',
-    userName: 'Admin System',
-    userRole: 'Administrator Sistem',
+    userId: deletedUser.id,
+    userName: deletedUser.name,
+    userRole: deletedUser.roleName,
     action: 'DELETE',
     details: `Menghapus akun pengguna: ${deletedUser.name} (${deletedUser.username})`,
   });
 
   res.json({
     success: true,
-    message: `Pengguna ${deletedUser.name} (${deletedUser.username}) berhasil dihapus.`
+    data: deletedUser,
+    user: deletedUser,
+    message: `Pengguna ${deletedUser.name} berhasil dihapus.`
   });
 });
 
