@@ -37,6 +37,7 @@ import {
   getNextUrutNumber,
   generateLetterNumberString
 } from '../utils/numberGenerator';
+import { Pagination } from './Pagination';
 
 interface BackendPortalProps {
   currentUser: User | null;
@@ -152,6 +153,14 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
   const [filterDivisi, setFilterDivisi] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+
+  // Pagination for Backend Surat List
+  const [suratPage, setSuratPage] = useState(1);
+  const [suratPageSize, setSuratPageSize] = useState(10);
+
+  // Pagination for Audit Logs
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsPageSize, setLogsPageSize] = useState(10);
 
   // New User Form State
   const [newUserName, setNewUserName] = useState('');
@@ -384,6 +393,23 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
     if (filterStatus !== 'ALL' && s.status !== filterStatus) return false;
     return true;
   });
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setSuratPage(1);
+  }, [searchQuery, filterDivisi, filterType, filterStatus]);
+
+  // Paginated surat slice for backend table
+  const paginatedBackendSurat = backendFilteredSurat.slice(
+    (suratPage - 1) * suratPageSize,
+    suratPage * suratPageSize
+  );
+
+  // Paginated audit logs
+  const paginatedAuditLogs = auditLogs.slice(
+    (logsPage - 1) * logsPageSize,
+    logsPage * logsPageSize
+  );
 
   // Handle copy number
   const handleCopy = (surat: SuratItem) => {
@@ -633,7 +659,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    backendFilteredSurat.map((surat) => (
+                    paginatedBackendSurat.map((surat) => (
                       <tr key={surat.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
@@ -753,6 +779,19 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Footer */}
+            {backendFilteredSurat.length > 0 && (
+              <Pagination
+                currentPage={suratPage}
+                totalItems={backendFilteredSurat.length}
+                pageSize={suratPageSize}
+                onPageChange={setSuratPage}
+                onPageSizeChange={setSuratPageSize}
+                pageSizeOptions={[10, 25, 50, 100]}
+                itemName="surat"
+              />
+            )}
 
           </div>
         )}
@@ -1272,7 +1311,7 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {auditLogs.map((log) => (
+                  {paginatedAuditLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50">
                       <td className="py-3 px-4 whitespace-nowrap text-slate-500 font-mono text-[11px]">
                         {new Date(log.timestamp).toLocaleString('id-ID')}
@@ -1303,6 +1342,19 @@ export const BackendPortal: React.FC<BackendPortalProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Footer */}
+            {auditLogs.length > 0 && (
+              <Pagination
+                currentPage={logsPage}
+                totalItems={auditLogs.length}
+                pageSize={logsPageSize}
+                onPageChange={setLogsPage}
+                onPageSizeChange={setLogsPageSize}
+                pageSizeOptions={[10, 25, 50, 100]}
+                itemName="log aktivitas"
+              />
+            )}
           </div>
         )}
 

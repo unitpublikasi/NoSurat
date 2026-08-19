@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   CheckCircle2,
@@ -17,6 +17,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { SuratItem, Division, LetterType, PublicStats } from '../types/surat';
+import { Pagination } from './Pagination';
 
 interface PublicHomeProps {
   suratList: SuratItem[];
@@ -43,6 +44,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
   const [selectedYear, setSelectedYear] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('Aktif');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Quick verify search state
   const [verifyInput, setVerifyInput] = useState('');
@@ -123,6 +128,17 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
       return true;
     });
   }, [suratList, keyword, selectedDivisi, selectedType, selectedYear, selectedStatus]);
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, selectedDivisi, selectedType, selectedYear, selectedStatus]);
+
+  // Paginated letters slice
+  const paginatedSurat = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSurat.slice(start, start + pageSize);
+  }, [filteredSurat, currentPage, pageSize]);
 
   // Extract available years
   const availableYears = useMemo(() => {
@@ -398,7 +414,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {filteredSurat.map((surat) => (
+                  {paginatedSurat.map((surat) => (
                     <tr
                       key={surat.id}
                       className="hover:bg-amber-50/40 transition-colors group"
@@ -486,6 +502,19 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                 </tbody>
               </table>
             </div>
+          )}
+
+          {/* Pagination Footer */}
+          {filteredSurat.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredSurat.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              itemName="surat"
+            />
           )}
 
         </div>
