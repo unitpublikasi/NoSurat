@@ -24,12 +24,84 @@ const PORT = 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// In-Memory / File-Persisted Data Store for Multi-User state
-let divisions = [...INITIAL_DIVISIONS];
-let letterTypes = [...INITIAL_LETTER_TYPES];
-let users: User[] = [...INITIAL_USERS];
-let suratList: SuratItem[] = [...INITIAL_SURAT];
-let auditLogs: AuditLog[] = [...INITIAL_AUDIT_LOGS];
+// Persistent File Storage Engine
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DB_FILE = path.join(DATA_DIR, 'pkmk_database.json');
+
+interface DatabaseStore {
+  divisions: typeof INITIAL_DIVISIONS;
+  letterTypes: typeof INITIAL_LETTER_TYPES;
+  users: User[];
+  suratList: SuratItem[];
+  auditLogs: AuditLog[];
+}
+
+function loadDatabase(): DatabaseStore {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(DB_FILE)) {
+      const content = fs.readFileSync(DB_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          divisions: Array.isArray(parsed.divisions) && parsed.divisions.length > 0 ? parsed.divisions : [...INITIAL_DIVISIONS],
+          letterTypes: Array.isArray(parsed.letterTypes) && parsed.letterTypes.length > 0 ? parsed.letterTypes : [...INITIAL_LETTER_TYPES],
+          users: Array.isArray(parsed.users) && parsed.users.length > 0 ? parsed.users : [...INITIAL_USERS],
+          suratList: Array.isArray(parsed.suratList) && parsed.suratList.length > 0 ? parsed.suratList : [...INITIAL_SURAT],
+          auditLogs: Array.isArray(parsed.auditLogs) && parsed.auditLogs.length > 0 ? parsed.auditLogs : [...INITIAL_AUDIT_LOGS],
+        };
+      }
+    }
+  } catch (err) {
+    console.error('Error loading database file from disk, using initial data:', err);
+  }
+
+  const initialStore: DatabaseStore = {
+    divisions: [...INITIAL_DIVISIONS],
+    letterTypes: [...INITIAL_LETTER_TYPES],
+    users: [...INITIAL_USERS],
+    suratList: [...INITIAL_SURAT],
+    auditLogs: [...INITIAL_AUDIT_LOGS]
+  };
+
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(DB_FILE, JSON.stringify(initialStore, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to write initial database file:', e);
+  }
+
+  return initialStore;
+}
+
+const initialDb = loadDatabase();
+let divisions = initialDb.divisions;
+let letterTypes = initialDb.letterTypes;
+let users: User[] = initialDb.users;
+let suratList: SuratItem[] = initialDb.suratList;
+let auditLogs: AuditLog[] = initialDb.auditLogs;
+
+function saveDatabase() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const dataToSave: DatabaseStore = {
+      divisions,
+      letterTypes,
+      users,
+      suratList,
+      auditLogs
+    };
+    fs.writeFileSync(DB_FILE, JSON.stringify(dataToSave, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to persist database file to disk:', err);
+  }
+}
 
 // Roman Numerals helper for Month in UGM letter numbers
 function getRomanMonth(month: number): string {
@@ -303,8 +375,8 @@ app.get('/api/admin/next-number', (req, res) => {
   });
 });
 
-// POST /api/admin/surat - Generate New Official Letter Number
-app.post('/api/admin/surat', (req, res) => {
+// POST /api/admin/surat & /api/surat - Generate New Official Letter Number (Available for all authenticated users)
+app.post(['/api/admin/surat', '/api/surat'], (req, res) => {
   const {
     jenisSuratCode,
     divisiCode,
@@ -385,6 +457,9 @@ app.post('/api/admin/surat', (req, res) => {
     nomorSuratTarget: newSurat.nomorSurat
   });
 
+  // Persist immediately to disk
+  saveDatabase();
+
   res.json({
     success: true,
     data: newSurat,
@@ -392,8 +467,8 @@ app.post('/api/admin/surat', (req, res) => {
   });
 });
 
-// PUT /api/admin/surat/:id - Edit full letter data or change status
-app.put('/api/admin/surat/:id', (req, res) => {
+// PUT /api/admin/surat/:id & /api/surat/:id - Edit full letter data or change status
+app.put(['/api/admin/surat/:id', '/api/surat/:id'], (req, res) => {
   const { id } = req.params;
   const {
     nomorSurat,
@@ -409,9 +484,60 @@ app.put('/api/admin/surat/:id', (req, res) => {
     userId
   } = req.body;
 
-  const index = suratList.findIndex(s => s.id === id);
+  let index = suratList.findIndex(s => s.id === id);
   if (index === -1) {
-    return res.status(404).json({ success: false, message: 'Data surat tidak ditemukan.' });
+    // If not found by ID, try matching by nomorSurat
+    if (nomorSurat) {
+      index = suratList.findIndex(s => s.nomorSurat === nomorSurat);
+    }
+  }
+
+  if (index === -1) {
+    // If updating a surat created in client fallback, upsert into server list
+    const jObj = letterTypes.find(t => t.code === jenisSuratCode);
+    const dObj = divisions.find(d => d.code === divisiCode);
+    const updater = users.find(u => u.id === userId) || users[0];
+
+    const newSurat: SuratItem = {
+      id: id || `srt-${Date.now()}`,
+      nomorSurat: nomorSurat || `SURAT-${Date.now()}`,
+      nomorUrut: 1,
+      jenisSuratCode: jenisSuratCode || 'S.Tgs',
+      jenisSuratName: jObj ? jObj.name : (jenisSuratCode || 'Surat Tugas'),
+      divisiCode: divisiCode || 'DMRS',
+      divisiName: dObj ? dObj.name : (divisiCode || 'DMRS'),
+      perihal: perihal || 'Perihal Surat',
+      tglSurat: tglSurat || new Date().toISOString().split('T')[0],
+      tglDibuat: new Date().toISOString(),
+      ditujukanKepada: ditujukanKepada || 'Mitra / Instansi Terkait',
+      pengajuName: pengajuName || updater.name,
+      pembuatUserId: updater.id,
+      pembuatUserName: updater.name,
+      status: (status as StatusSurat) || 'Aktif',
+      qrCodeHash: `PKMK-VERIFIED-${Date.now()}`,
+      catatan,
+      lampiranInfo
+    };
+
+    suratList.unshift(newSurat);
+    auditLogs.unshift({
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      userId: updater.id,
+      userName: updater.name,
+      userRole: updater.roleName,
+      action: 'UPDATE',
+      details: `Menyimpan data surat ${newSurat.nomorSurat} (${newSurat.perihal.substring(0, 40)}...)`,
+      nomorSuratTarget: newSurat.nomorSurat
+    });
+
+    saveDatabase();
+
+    return res.json({
+      success: true,
+      data: newSurat,
+      message: 'Data surat berhasil disimpan.'
+    });
   }
 
   const current = suratList[index];
@@ -454,6 +580,8 @@ app.put('/api/admin/surat/:id', (req, res) => {
     nomorSuratTarget: current.nomorSurat
   });
 
+  saveDatabase();
+
   res.json({
     success: true,
     data: current,
@@ -461,14 +589,14 @@ app.put('/api/admin/surat/:id', (req, res) => {
   });
 });
 
-// DELETE /api/admin/surat/:id - Delete letter (Admin strictly)
-app.delete('/api/admin/surat/:id', (req, res) => {
+// DELETE /api/admin/surat/:id & /api/surat/:id - Delete letter
+app.delete(['/api/admin/surat/:id', '/api/surat/:id'], (req, res) => {
   const { id } = req.params;
   const { userId } = req.query;
 
   const index = suratList.findIndex(s => s.id === id);
   if (index === -1) {
-    return res.status(404).json({ success: false, message: 'Surat tidak ditemukan.' });
+    return res.json({ success: true, message: 'Surat telah dihapus.' });
   }
 
   const removed = suratList.splice(index, 1)[0];
@@ -485,22 +613,24 @@ app.delete('/api/admin/surat/:id', (req, res) => {
     nomorSuratTarget: removed.nomorSurat
   });
 
+  saveDatabase();
+
   res.json({
     success: true,
     message: `Nomor surat ${removed.nomorSurat} telah dihapus dari database.`
   });
 });
 
-// GET /api/admin/users - Multi-User Management
-app.get('/api/admin/users', (req, res) => {
+// GET /api/admin/users & /api/users - Multi-User Management
+app.get(['/api/admin/users', '/api/users'], (req, res) => {
   res.json({
     success: true,
     data: users
   });
 });
 
-// POST /api/admin/users - Create Multi-User Account
-app.post('/api/admin/users', (req, res) => {
+// POST /api/admin/users & /api/users - Create Multi-User Account
+app.post(['/api/admin/users', '/api/users'], (req, res) => {
   const { name, username, password, email, role, divisiCode } = req.body;
 
   const trimmedName = (name || '').trim();
@@ -561,6 +691,8 @@ app.post('/api/admin/users', (req, res) => {
     details: `Menambahkan akun pengguna baru: ${newUser.name} (${newUser.username}) [${newUser.roleName}] - ${newUser.divisiName}`,
   });
 
+  saveDatabase();
+
   res.json({
     success: true,
     data: newUser,
@@ -569,8 +701,8 @@ app.post('/api/admin/users', (req, res) => {
   });
 });
 
-// PUT /api/admin/users/:id - Update User Account (Admin CRUD)
-app.put('/api/admin/users/:id', (req, res) => {
+// PUT /api/admin/users/:id & /api/users/:id - Update User Account (Admin CRUD)
+app.put(['/api/admin/users/:id', '/api/users/:id'], (req, res) => {
   const { id } = req.params;
   const decodedId = decodeURIComponent(id);
   const { name, username, password, email, role, divisiCode } = req.body;
@@ -617,6 +749,8 @@ app.put('/api/admin/users/:id', (req, res) => {
       action: 'UPDATE',
       details: `Memperbarui akun pengguna: ${newUser.name} (${newUser.username}) [${newUser.roleName}]`,
     });
+
+    saveDatabase();
 
     return res.json({
       success: true,
@@ -666,6 +800,8 @@ app.put('/api/admin/users/:id', (req, res) => {
     details: `Memperbarui akun pengguna: ${user.name} (${user.username}) [${user.roleName}]`,
   });
 
+  saveDatabase();
+
   res.json({
     success: true,
     data: user,
@@ -674,8 +810,8 @@ app.put('/api/admin/users/:id', (req, res) => {
   });
 });
 
-// DELETE /api/admin/users/:id - Delete User Account (Admin CRUD)
-app.delete('/api/admin/users/:id', (req, res) => {
+// DELETE /api/admin/users/:id & /api/users/:id - Delete User Account (Admin CRUD)
+app.delete(['/api/admin/users/:id', '/api/users/:id'], (req, res) => {
   const { id } = req.params;
   const decodedId = decodeURIComponent(id);
 
@@ -700,6 +836,8 @@ app.delete('/api/admin/users/:id', (req, res) => {
     details: `Menghapus akun pengguna: ${deletedUser.name} (${deletedUser.username})`,
   });
 
+  saveDatabase();
+
   res.json({
     success: true,
     data: deletedUser,
@@ -708,11 +846,65 @@ app.delete('/api/admin/users/:id', (req, res) => {
   });
 });
 
-// GET /api/admin/logs - Audit Trail History
-app.get('/api/admin/logs', (req, res) => {
+// GET /api/admin/logs & /api/logs - Audit Trail History
+app.get(['/api/admin/logs', '/api/logs'], (req, res) => {
   res.json({
     success: true,
     data: auditLogs
+  });
+});
+
+// POST /api/sync - Bidirectional state sync between browser and server
+app.post('/api/sync', (req, res) => {
+  const { clientSuratList, clientUsers, clientAuditLogs } = req.body;
+
+  if (Array.isArray(clientSuratList)) {
+    for (const clientSurat of clientSuratList) {
+      if (clientSurat && clientSurat.id) {
+        const idx = suratList.findIndex(s => s.id === clientSurat.id || s.nomorSurat === clientSurat.nomorSurat);
+        if (idx === -1) {
+          suratList.unshift(clientSurat);
+        } else {
+          // If client has updated fields, merge
+          suratList[idx] = { ...suratList[idx], ...clientSurat };
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(clientUsers)) {
+    for (const clientUser of clientUsers) {
+      if (clientUser && clientUser.id) {
+        const idx = users.findIndex(u => u.id === clientUser.id || u.username.toLowerCase() === clientUser.username.toLowerCase());
+        if (idx === -1) {
+          users.push(clientUser);
+        } else {
+          users[idx] = { ...users[idx], ...clientUser };
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(clientAuditLogs)) {
+    for (const log of clientAuditLogs) {
+      if (log && log.id && !auditLogs.some(l => l.id === log.id)) {
+        auditLogs.unshift(log);
+      }
+    }
+  }
+
+  saveDatabase();
+
+  res.json({
+    success: true,
+    data: {
+      suratList,
+      users,
+      auditLogs,
+      divisions,
+      letterTypes
+    },
+    message: 'Database berhasil disinkronkan dan tersimpan permanen di disk.'
   });
 });
 

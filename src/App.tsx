@@ -30,24 +30,73 @@ import {
 } from './types/surat';
 import { getNextUrutNumber, generateLetterNumberString } from './utils/numberGenerator';
 
+// Helpers for safe local storage persistence
+function loadLocal<T>(key: string, defaultVal: T): T {
+  try {
+    const item = localStorage.getItem(key);
+    if (item) {
+      const parsed = JSON.parse(item);
+      if (Array.isArray(defaultVal)) {
+        return (Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultVal) as unknown as T;
+      }
+      return parsed ?? defaultVal;
+    }
+  } catch (e) {
+    console.warn(`Failed to read local storage key ${key}:`, e);
+  }
+  return defaultVal;
+}
+
+function saveLocal(key: string, val: any) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {
+    console.warn(`Failed to write local storage key ${key}:`, e);
+  }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'public' | 'backend'>('public');
 
-  // App Data State
-  const [suratList, setSuratList] = useState<SuratItem[]>(INITIAL_SURAT);
-  const [divisions, setDivisions] = useState<Division[]>(INITIAL_DIVISIONS);
-  const [letterTypes, setLetterTypes] = useState<LetterType[]>(INITIAL_LETTER_TYPES);
-  const [usersList, setUsersList] = useState<User[]>(INITIAL_USERS);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
+  // App Data State with Local Storage Hydration
+  const [suratList, setSuratList] = useState<SuratItem[]>(() => loadLocal('pkmk_surat_list', INITIAL_SURAT));
+  const [divisions, setDivisions] = useState<Division[]>(() => loadLocal('pkmk_divisions', INITIAL_DIVISIONS));
+  const [letterTypes, setLetterTypes] = useState<LetterType[]>(() => loadLocal('pkmk_letter_types', INITIAL_LETTER_TYPES));
+  const [usersList, setUsersList] = useState<User[]>(() => loadLocal('pkmk_users_list', INITIAL_USERS));
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => loadLocal('pkmk_audit_logs', INITIAL_AUDIT_LOGS));
   const [stats, setStats] = useState<PublicStats | null>(null);
 
   // Active User State (Default logged in as Super Admin for smooth reviewer experience)
-  const [currentUser, setCurrentUser] = useState<User | null>(INITIAL_USERS[0]);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const savedUser = loadLocal<User | null>('pkmk_current_user', null);
+    if (savedUser) return savedUser;
+    const initialUsers = loadLocal<User[]>('pkmk_users_list', INITIAL_USERS);
+    return initialUsers[0] || INITIAL_USERS[0];
+  });
 
   // UI Modals
   const [selectedSuratForDetail, setSelectedSuratForDetail] = useState<SuratItem | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Save to localStorage whenever state changes
+  useEffect(() => {
+    saveLocal('pkmk_surat_list', suratList);
+  }, [suratList]);
+
+  useEffect(() => {
+    saveLocal('pkmk_users_list', usersList);
+  }, [usersList]);
+
+  useEffect(() => {
+    saveLocal('pkmk_audit_logs', auditLogs);
+  }, [auditLogs]);
+
+  useEffect(() => {
+    if (currentUser) {
+      saveLocal('pkmk_current_user', currentUser);
+    }
+  }, [currentUser]);
 
   // AI Modal State
   const [aiModal, setAiModal] = useState<{
@@ -63,43 +112,64 @@ export default function App() {
     destination: ''
   });
 
-  // Fetch data from Express backend API
+  // Fetch data from Express backend API and perform 2-way disk sync
   const fetchDataFromBackend = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch Surat List
-      const resSurat = await fetch('/api/public/surat');
-      if (resSurat.ok) {
-        const dataSurat = await resSurat.json();
-        if (dataSurat.success && Array.isArray(dataSurat.data)) {
-          setSuratList(dataSurat.data);
+      // 1. Send sync request to merge local state and backend disk database
+      const syncRes = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientSuratList: suratList,
+          clientUsers: usersList,
+          clientAuditLogs: auditLogs
+        })
+      });
+
+      if (syncRes.ok) {
+        const syncData = await syncRes.json();
+        if (syncData.success && syncData.data) {
+          if (Array.isArray(syncData.data.suratList) && syncData.data.suratList.length > 0) {
+            setSuratList(syncData.data.suratList);
+            saveLocal('pkmk_surat_list', syncData.data.suratList);
+          }
+          if (Array.isArray(syncData.data.users) && syncData.data.users.length > 0) {
+            setUsersList(syncData.data.users);
+            saveLocal('pkmk_users_list', syncData.data.users);
+          }
+          if (Array.isArray(syncData.data.auditLogs) && syncData.data.auditLogs.length > 0) {
+            setAuditLogs(syncData.data.auditLogs);
+            saveLocal('pkmk_audit_logs', syncData.data.auditLogs);
+          }
+        }
+      } else {
+        // Fallback individual gets
+        const resSurat = await fetch('/api/public/surat');
+        if (resSurat.ok) {
+          const dataSurat = await resSurat.json();
+          if (dataSurat.success && Array.isArray(dataSurat.data) && dataSurat.data.length > 0) {
+            setSuratList(dataSurat.data);
+            saveLocal('pkmk_surat_list', dataSurat.data);
+          }
+        }
+
+        const resUsers = await fetch('/api/admin/users');
+        if (resUsers.ok) {
+          const dataUsers = await resUsers.json();
+          if (dataUsers.success && Array.isArray(dataUsers.data) && dataUsers.data.length > 0) {
+            setUsersList(dataUsers.data);
+            saveLocal('pkmk_users_list', dataUsers.data);
+          }
         }
       }
 
-      // 2. Fetch Public Stats
+      // Fetch Public Stats
       const resStats = await fetch('/api/public/stats');
       if (resStats.ok) {
         const dataStats = await resStats.json();
         if (dataStats.success) {
           setStats(dataStats.data);
-        }
-      }
-
-      // 3. Fetch Users List
-      const resUsers = await fetch('/api/admin/users');
-      if (resUsers.ok) {
-        const dataUsers = await resUsers.json();
-        if (dataUsers.success && Array.isArray(dataUsers.data)) {
-          setUsersList(dataUsers.data);
-        }
-      }
-
-      // 4. Fetch Audit Logs
-      const resLogs = await fetch('/api/admin/logs');
-      if (resLogs.ok) {
-        const dataLogs = await resLogs.json();
-        if (dataLogs.success && Array.isArray(dataLogs.data)) {
-          setAuditLogs(dataLogs.data);
         }
       }
     } catch (err) {
@@ -115,24 +185,51 @@ export default function App() {
 
   // Demo User Switcher Handler
   const handleLoginAsDemo = (username: string) => {
-    const user = usersList.find(u => u.username === username);
+    const user = usersList.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (user) {
       setCurrentUser(user);
+      saveLocal('pkmk_current_user', user);
     }
   };
 
-  // Create New Official Letter
+  // Create New Official Letter (Accessible by all users: staf, sekretariat, verifikator, admin)
   const handleCreateSurat = async (formData: any): Promise<boolean> => {
     try {
       const res = await fetch('/api/admin/surat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          pembuatUserId: currentUser?.id || 'usr-1',
+          pengajuName: formData.pengajuName || currentUser?.name || 'Staf PKMK'
+        })
       });
 
       const data = await res.json();
       if (data.success && data.data) {
-        setSuratList(prev => [data.data, ...prev]);
+        setSuratList(prev => {
+          const updated = [data.data, ...prev.filter(s => s.id !== data.data.id && s.nomorSurat !== data.data.nomorSurat)];
+          saveLocal('pkmk_surat_list', updated);
+          return updated;
+        });
+
+        // Add to audit logs locally as well
+        const newLog: AuditLog = {
+          id: `log-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          userId: currentUser?.id || 'usr-1',
+          userName: currentUser?.name || 'Pengguna Sistem',
+          userRole: currentUser?.roleName || 'Staf',
+          action: 'CREATE',
+          details: `Menerbitkan nomor surat baru: ${data.data.nomorSurat} (${data.data.perihal.substring(0, 50)}...)`,
+          nomorSuratTarget: data.data.nomorSurat
+        };
+        setAuditLogs(prev => {
+          const updated = [newLog, ...prev];
+          saveLocal('pkmk_audit_logs', updated);
+          return updated;
+        });
+
         fetchDataFromBackend();
         return true;
       } else {
@@ -140,7 +237,7 @@ export default function App() {
         return false;
       }
     } catch (err) {
-      console.error('Create letter error:', err);
+      console.error('Create letter error, using reliable local persistence:', err);
       // Local fallback
       const year = new Date(formData.tglSurat).getFullYear();
       const nextUrut = getNextUrutNumber(suratList, year);
@@ -163,8 +260,8 @@ export default function App() {
         perihal: formData.perihal,
         tglSurat: formData.tglSurat,
         tglDibuat: new Date().toISOString(),
-        ditujukanKepada: formData.ditujukanKepada,
-        pengajuName: formData.pengajuName,
+        ditujukanKepada: formData.ditujukanKepada || 'Mitra / Instansi Terkait',
+        pengajuName: formData.pengajuName || currentUser?.name || 'Staf PKMK',
         pembuatUserId: currentUser?.id || 'usr-1',
         pembuatUserName: currentUser?.name || 'Staf PKMK',
         status: 'Aktif',
@@ -173,15 +270,29 @@ export default function App() {
         lampiranInfo: formData.lampiranInfo
       };
 
-      setSuratList(prev => [newSurat, ...prev]);
+      setSuratList(prev => {
+        const updated = [newSurat, ...prev];
+        saveLocal('pkmk_surat_list', updated);
+        return updated;
+      });
+
+      // Try background sync
+      fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientSuratList: [newSurat, ...suratList]
+        })
+      }).catch(() => {});
+
       return true;
     }
   };
 
-  // Update full Surat data
+  // Update full Surat data (Accessible for all users to update their letter data)
   const handleUpdateSurat = async (id: string, updatedData: Partial<SuratItem>): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/admin/surat/${id}`, {
+      const res = await fetch(`/api/admin/surat/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,9 +303,11 @@ export default function App() {
 
       const data = await res.json();
       if (data.success && data.data) {
-        setSuratList(prev =>
-          prev.map(s => (s.id === id ? { ...s, ...data.data } : s))
-        );
+        setSuratList(prev => {
+          const updated = prev.map(s => (s.id === id ? { ...s, ...data.data } : s));
+          saveLocal('pkmk_surat_list', updated);
+          return updated;
+        });
         fetchDataFromBackend();
         return true;
       } else {
@@ -202,11 +315,13 @@ export default function App() {
         return false;
       }
     } catch (err) {
-      console.error('Update surat error:', err);
+      console.error('Update surat network error, updating locally and persisting:', err);
       // Fallback local state update
-      setSuratList(prev =>
-        prev.map(s => (s.id === id ? { ...s, ...updatedData } : s))
-      );
+      setSuratList(prev => {
+        const updated = prev.map(s => (s.id === id ? { ...s, ...updatedData } : s));
+        saveLocal('pkmk_surat_list', updated);
+        return updated;
+      });
       return true;
     }
   };
@@ -214,7 +329,7 @@ export default function App() {
   // Update Surat Status (Aktif / Dibatalkan / Arsip)
   const handleUpdateSuratStatus = async (id: string, status: StatusSurat) => {
     try {
-      const res = await fetch(`/api/admin/surat/${id}`, {
+      const res = await fetch(`/api/admin/surat/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -224,29 +339,37 @@ export default function App() {
       });
 
       if (res.ok) {
-        setSuratList(prev =>
-          prev.map(s => (s.id === id ? { ...s, status } : s))
-        );
+        setSuratList(prev => {
+          const updated = prev.map(s => (s.id === id ? { ...s, status } : s));
+          saveLocal('pkmk_surat_list', updated);
+          return updated;
+        });
         fetchDataFromBackend();
       }
     } catch (err) {
-      setSuratList(prev =>
-        prev.map(s => (s.id === id ? { ...s, status } : s))
-      );
+      setSuratList(prev => {
+        const updated = prev.map(s => (s.id === id ? { ...s, status } : s));
+        saveLocal('pkmk_surat_list', updated);
+        return updated;
+      });
     }
   };
 
   // Delete Surat
   const handleDeleteSurat = async (id: string): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/admin/surat/${id}?userId=${currentUser?.id || ''}`, {
+      const res = await fetch(`/api/admin/surat/${encodeURIComponent(id)}?userId=${currentUser?.id || ''}`, {
         method: 'DELETE'
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success !== false) {
-        setSuratList(prev => prev.filter(s => s.id !== id));
+        setSuratList(prev => {
+          const updated = prev.filter(s => s.id !== id);
+          saveLocal('pkmk_surat_list', updated);
+          return updated;
+        });
         fetchDataFromBackend();
         return true;
       } else {
@@ -255,7 +378,11 @@ export default function App() {
       }
     } catch (err) {
       console.error('Delete surat error:', err);
-      setSuratList(prev => prev.filter(s => s.id !== id));
+      setSuratList(prev => {
+        const updated = prev.filter(s => s.id !== id);
+        saveLocal('pkmk_surat_list', updated);
+        return updated;
+      });
       return true;
     }
   };
